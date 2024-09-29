@@ -1,0 +1,77 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model IceCream {
+  id         Int          @id @default(autoincrement())
+  name       String       @db.VarChar(255)
+  category   Category     @default(IceCream)
+  cost       Float
+  // Relation field
+  orderItems OrderItems[]
+}
+
+enum Category {
+  IceCream
+  Falooda
+  MilkShakes
+}
+
+enum ModeOfPayment {
+  Cash
+  Card
+  UPI
+}
+
+enum OrderType {
+  DineIn
+  TakeAway
+  Delivery
+}
+
+model Order {
+  id            Int           @id @default(autoincrement())
+  orderDate     DateTime      @default(now())
+  modeOfPayment ModeOfPayment
+  orderType     OrderType
+  totalCost     Float         @default(0.0)
+  userId        Int
+  // Relation field
+  user          Login         @relation(fields: [userId], references: [id])
+  orderItems    OrderItems[]
+}
+
+model OrderItems {
+  id       Int   @id @default(autoincrement())
+  quantity Int   @default(1)
+  itemCost Float // Stores the price of one unit of the ice cream
+
+  // Foreign keys
+  orderId    Int
+  iceCreamId Int
+
+  // Relations
+  order    Order    @relation(fields: [orderId], references: [id])
+  iceCream IceCream @relation(fields: [iceCreamId], references: [id])
+
+  @@unique([orderId, iceCreamId]) // Ensures each ice cream is only listed once per order
+}
+
+model Login {
+  id       Int     @id @default(autoincrement())
+  email    String  @db.VarChar(255)
+  username String  @unique @db.VarChar(255) // Ensure usernames are unique
+  password String  @db.VarChar(255) // Store hashed password
+  orders   Order[]
+}

@@ -12,6 +12,10 @@ const config: Config = {
         background: "var(--background)",
         foreground: "var(--foreground)",
       },
+      backgroundImage: {
+        "vertical-stripes":
+          "linear-gradient(to right, #E6F3FF 25%, transparent 100%), linear-gradient(to right, #93C5FD 54%, transparent 10%)",
+      },
     },
   },
   plugins: [],
