@@ -6,7 +6,8 @@ import {
 import { PrismaClient } from "@prisma/client";
 import { IceCream } from "@/context/CartContext";
 import bcrypt from "bcryptjs";
-
+import { signIn } from "@/auth";
+import { AuthError } from "next-auth";
 const prisma = new PrismaClient();
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -111,6 +112,7 @@ export async function UpdateIcecream(
 //getIcecream
 export async function getIceCreamData() {
   try {
+    await delay(1000);
     const iceCreams: IceCream[] = await prisma.iceCream.findMany({
       select: {
         id: true,
@@ -237,4 +239,27 @@ export async function registerUser(prevState: UserState, formData: FormData) {
   } finally {
     await prisma.$disconnect(); // Disconnect Prisma client
   }
+}
+
+//authenticate
+export async function authenticate(
+  prevState: string | undefined,
+  formData: FormData
+) {
+  try {
+    await signIn("credentials", formData);
+  } catch (error) {
+    if (error instanceof AuthError) {
+      switch (error.type) {
+        case "CredentialsSignin":
+          return "Invalid credentials.";
+        default:
+          return "Something went wrong.";
+      }
+    }
+    throw error;
+  }
+}
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

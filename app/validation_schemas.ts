@@ -35,3 +35,10 @@ const createIceCreamSchemaWithId = createIceCreamSchema.extend({
 
 // Now infer the type
 export type CreateIcecream = z.infer<typeof createIceCreamSchemaWithId>;
+
+const userWithIdExtend = registerUserSchema.extend({
+  id: z.number(), // Add the id field of type number
+});
+
+// Now infer the type
+export type userWithID = z.infer<typeof userWithIdExtend>;

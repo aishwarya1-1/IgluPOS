@@ -13,20 +13,40 @@ import { useRouter } from 'next/navigation'
 export default function IceCreamList() {
   const router = useRouter();
   const [iceCreamFlavors, setIceCreamFlavors] = useState<IceCream[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('')
   const { addToCart } = useCart()
 
   useEffect(() => {
     const fetchData = async () => {
-      const result = await getIceCreamData();
-      if (!result.success) {
-        console.log('Error when fetching ice cream data');
-      } else {
-        setIceCreamFlavors(result.data);
+      try {
+        setIsLoading(true);
+        const result = await getIceCreamData();
+        if (result.success) {
+          setIceCreamFlavors(result.data);
+        } else {
+          setError('Failed to fetch ice cream data');
+        }
+      } catch (err) {
+        setError('An error occurred while fetching data');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
       }
     };
+
     fetchData();
   }, []);
+
+  if (isLoading) {
+    return <div>Loading ice cream flavors...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
+
 
   const filteredFlavors = iceCreamFlavors.filter((flavor) =>
     flavor.name.toLowerCase().includes(searchTerm.toLowerCase())

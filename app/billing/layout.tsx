@@ -2,6 +2,7 @@
 import { CartProvider } from '../../context/CartContext'
 import Sidebar from '../../components/Sidebar'
 import '../globals.css'
+import { SessionProvider } from "next-auth/react";
 
 export default function Layout({
   children,
@@ -9,7 +10,7 @@ export default function Layout({
   children: React.ReactNode
 }) {
   return (
-   
+    <SessionProvider>
         <CartProvider>
           <div className="flex">
             <Sidebar />
@@ -18,6 +19,7 @@ export default function Layout({
             </main>
           </div>
         </CartProvider>
+         </SessionProvider>
 
   )
 }
