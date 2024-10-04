@@ -2,13 +2,19 @@
 
 import { useCart } from '../context/CartContext'
 
-export default function Cart() {
-  const { cart, incrementItem, decrementItem, removeItem } = useCart()
+export default function Cart({ cartErrors }: { cartErrors?: string[] }) {
+  const { cart, incrementItem, decrementItem, removeItem ,totalCost} = useCart()
 
-  const total = cart.reduce((sum, item) => sum + item.cost * item.quantity, 0)
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+       {cartErrors && cartErrors.length > 0 && (
+        <div className="mt-4 text-red-500">
+          {cartErrors.map((error, index) => (
+            <p key={index}>{error}</p>
+          ))}
+        </div>
+      )}
       <h2 className="text-2xl font-semibold mb-4">Cart</h2>
       {cart.length === 0 ? (
         <p>Your cart is empty.</p>
@@ -43,7 +49,7 @@ export default function Cart() {
         </ul>
       )}
       <div className="mt-4 text-xl font-semibold">
-        Total: {total.toFixed(2)}
+        Total: {totalCost.toFixed(2)}
       </div>
     </div>
   )

@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 export const createIceCreamSchema = z.object({
   name: z.string().nonempty({ message: "Name is required" }),
   category: z.enum(["IceCream", "Falooda", "MilkShakes"], {
@@ -20,14 +21,26 @@ export const registerUserSchema = z.object({
   password: z.string().nonempty("Password is required"),
 });
 
-// export const createOrderSchema = z.object({
-//   iceCreamIds: z
-//     .array(z.number())
-//     .nonempty({ message: "At least one ice cream must be selected." }),
-//   modeOfPayment: z.enum(["Cash", "Card", "UPI"], {
-//     invalid_type_error: "Invalid payment method selected.",
-//   }),
-// });
+const CartItemSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  cost: z.number(),
+  quantity: z.number(),
+});
+
+export const createOrderSchema = z.object({
+  cart: z
+    .array(CartItemSchema)
+    .nonempty({ message: "At least one ice cream must be selected." }),
+  orderType: z.enum(["DineIn", "TakeAway", "Delivery"], {
+    message: "Please select the Order Type",
+  }),
+  modeOfPayment: z.enum(["Cash", "Card", "UPI"], {
+    message: "Please select a payment method.",
+  }),
+  userId: z.coerce.number(),
+  totalCost: z.number(),
+});
 
 const createIceCreamSchemaWithId = createIceCreamSchema.extend({
   id: z.number(), // Add the id field of type number
@@ -35,10 +48,3 @@ const createIceCreamSchemaWithId = createIceCreamSchema.extend({
 
 // Now infer the type
 export type CreateIcecream = z.infer<typeof createIceCreamSchemaWithId>;
-
-const userWithIdExtend = registerUserSchema.extend({
-  id: z.number(), // Add the id field of type number
-});
-
-// Now infer the type
-export type userWithID = z.infer<typeof userWithIdExtend>;

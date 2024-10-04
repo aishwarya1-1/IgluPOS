@@ -8,12 +8,13 @@ import React, { createContext, useContext, useState, ReactNode } from 'react'
   cost: number
 }
 
-interface CartItem extends IceCream {
+ export interface CartItem extends IceCream {
   quantity: number
 }
 
 interface CartContextType {
   cart: CartItem[]
+  totalCost: number;
   addToCart: (item: IceCream) => void
   incrementItem: (id: number) => void
   decrementItem: (id: number) => void
@@ -25,6 +26,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined)
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([])
+  const totalCost = cart.reduce((total, item) => total + item.cost * item.quantity, 0);
 
   const addToCart = (item: IceCream) => {
     setCart((prevCart) => {
@@ -70,6 +72,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     <CartContext.Provider
       value={{
         cart,
+        totalCost,
         addToCart,
         incrementItem,
         decrementItem,

@@ -2,8 +2,10 @@
 import {
   createIceCreamSchema,
   registerUserSchema,
+  createOrderSchema,
 } from "../validation_schemas";
 import { PrismaClient } from "@prisma/client";
+import { CartItem, useCart } from "@/context/CartContext";
 import { IceCream } from "@/context/CartContext";
 import bcrypt from "bcryptjs";
 import { signIn } from "@/auth";
@@ -26,6 +28,14 @@ export type UserState = {
     password?: string[];
   };
   message?: string;
+};
+export type BillState = {
+  errors: {
+    cart?: string[];
+
+    modeOfPayment?: string[];
+  };
+  message: string;
 };
 
 export async function createIcecream(prevState: State, formData: FormData) {
@@ -262,4 +272,100 @@ export async function authenticate(
 }
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+//billing
+export async function createBill(
+  cart: CartItem[],
+  totalCost: number,
+  userId: string | undefined,
+  prevState: BillState,
+  formData: FormData
+) {
+  console.log("here");
+  console.log(totalCost);
+  console.log(formData.get("modeOfPayment"));
+  console.log(userId);
+  const validatedFields = createOrderSchema.safeParse({
+    cart: cart,
+    modeOfPayment: formData.get("modeOfPayment"),
+    orderType: formData.get("orderType"),
+    totalCost: totalCost,
+    userId: userId,
+  });
+  if (!validatedFields.success) {
+    console.log(validatedFields.error.flatten().fieldErrors);
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "",
+    };
+  }
+  const {
+    cart: validatedCart,
+    modeOfPayment,
+    orderType,
+    totalCost: total,
+    userId: user,
+  } = validatedFields.data;
+  console.log(validatedCart, modeOfPayment, orderType, total, user);
+  try {
+    await prisma.$transaction(async (prisma) => {
+      // Create the new order
+      const newOrder = await prisma.order.create({
+        data: {
+          modeOfPayment,
+          orderType,
+          totalCost: total,
+          userId: user,
+        },
+      });
+
+      await prisma.orderItems.createMany({
+        data: validatedCart.map((item) => ({
+          orderId: newOrder.id,
+          iceCreamId: item.id,
+          quantity: item.quantity,
+          itemCost: item.cost,
+        })),
+      });
+    });
+    console.log("Done");
+    revalidatePath("/billing/dashboard");
+
+    return {
+      message: "Bill Added",
+      errors: {},
+    };
+  } catch (error) {
+    console.log(error);
+    return {
+      message: "Failed to add the bill.",
+      errors: {},
+    };
+  } finally {
+    await prisma.$disconnect(); // Disconnect Prisma client
+  }
+
+  // try {
+  //   // Create a new ice cream entry in the database
+  //   const newIceCream = await prisma.iceCream.create({
+  //     data: {
+  //       name,
+  //       category,
+  //       cost,
+  //     },
+  //   });
+  //   revalidatePath("/billing");
+  //   return {
+  //     message: "Ice cream added successfully",
+  //     errors: {},
+  //   };
+  // } catch (error) {
+  //   return {
+  //     message: "Failed to Add Ice Cream.",
+  //     errors: {},
+  //   };
+  // } finally {
+  //   await prisma.$disconnect(); // Disconnect Prisma client
+  // }
 }
