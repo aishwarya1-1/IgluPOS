@@ -3,7 +3,9 @@ import {
   createIceCreamSchema,
   registerUserSchema,
   createOrderSchema,
+  dateRangeSchema,
 } from "../validation_schemas";
+import { startOfDay, endOfDay, eachDayOfInterval, format } from "date-fns";
 import { PrismaClient } from "@prisma/client";
 import { CartItem, useCart } from "@/context/CartContext";
 import { IceCream } from "@/context/CartContext";
@@ -37,6 +39,23 @@ export type BillState = {
   };
   message: string;
 };
+
+interface SalesDataEntry {
+  date: string;
+  totalSales: number;
+  totalQuantity: number;
+}
+export interface DetailedOrderItem {
+  date: Date;
+  orderId: number;
+  modeOfPayment: string;
+  orderType: string;
+  username: string;
+  iceCreamName: string;
+  cost: number;
+  quantity: number;
+  category: string;
+}
 
 export async function createIcecream(prevState: State, formData: FormData) {
   const validatedFields = createIceCreamSchema.safeParse({
@@ -168,7 +187,6 @@ export async function getIceCreamById(id: number) {
     return {
       success: true,
       data: iceCream,
-      revalidateTag: `iceCream-${id}`,
     };
   } catch (error) {
     console.error("Database Error:", error);
@@ -282,10 +300,6 @@ export async function createBill(
   prevState: BillState,
   formData: FormData
 ) {
-  console.log("here");
-  console.log(totalCost);
-  console.log(formData.get("modeOfPayment"));
-  console.log(userId);
   const validatedFields = createOrderSchema.safeParse({
     cart: cart,
     modeOfPayment: formData.get("modeOfPayment"),
@@ -343,29 +357,250 @@ export async function createBill(
       errors: {},
     };
   } finally {
-    await prisma.$disconnect(); // Disconnect Prisma client
+    await prisma.$disconnect();
   }
+}
 
-  // try {
-  //   // Create a new ice cream entry in the database
-  //   const newIceCream = await prisma.iceCream.create({
-  //     data: {
-  //       name,
-  //       category,
-  //       cost,
-  //     },
-  //   });
-  //   revalidatePath("/billing");
-  //   return {
-  //     message: "Ice cream added successfully",
-  //     errors: {},
-  //   };
-  // } catch (error) {
-  //   return {
-  //     message: "Failed to Add Ice Cream.",
-  //     errors: {},
-  //   };
-  // } finally {
-  //   await prisma.$disconnect(); // Disconnect Prisma client
-  // }
+export async function getTopIcecreams(userId: string | undefined) {
+  const result = createOrderSchema
+    .pick({ userId: true })
+    .safeParse({ userId: userId });
+
+  if (!result.success) {
+    throw new Error("User id validation failed");
+  }
+  const { userId: userIdVal } = result.data;
+  try {
+    const topIceCreams = await prisma.orderItems.groupBy({
+      by: ["iceCreamId"],
+      where: {
+        order: {
+          userId: userIdVal,
+        },
+      },
+      _sum: {
+        quantity: true,
+      },
+      orderBy: {
+        _sum: {
+          quantity: "desc",
+        },
+      },
+      take: 7, // Limit to top 7 ice creams
+    });
+    const topIceCreamNamesWithQuantity = await Promise.all(
+      topIceCreams.map(async (item) => {
+        const iceCream = await prisma.iceCream.findUnique({
+          where: {
+            id: item.iceCreamId,
+          },
+          select: {
+            name: true,
+          },
+        });
+        return {
+          name: iceCream?.name,
+          quantity: item._sum.quantity,
+        };
+      })
+    );
+
+    // Log the result
+
+    return topIceCreamNamesWithQuantity;
+  } catch (error) {
+    console.error("Database Error:", error);
+    throw new Error("Failed to get top icecreams.");
+  }
+}
+
+//saledbydate
+
+export async function getSalesByDate(
+  startDate: string,
+  endDate: string,
+  userId: string | undefined
+) {
+  const result = dateRangeSchema.safeParse({
+    startDate: startDate,
+    endDate: endDate,
+  });
+
+  if (!result.success) {
+    console.error(result.error.flatten().fieldErrors);
+    throw new Error("Invalid dates");
+  }
+  const { startDate: start, endDate: end } = result.data;
+  const dateRange = eachDayOfInterval({ start: start, end: end });
+  // console.log(start, end, dateRange);
+  const resultuser = createOrderSchema
+    .pick({ userId: true })
+    .safeParse({ userId: userId });
+
+  if (!resultuser.success) {
+    throw new Error("User Id Validation failed ");
+  }
+  const { userId: userIdVal } = resultuser.data;
+  try {
+    const ordersData = await prisma.order.findMany({
+      where: {
+        userId: userIdVal,
+        orderDate: {
+          gte: startOfDay(start),
+          lte: endOfDay(end),
+        },
+      },
+      include: {
+        orderItems: true,
+      },
+    });
+
+    // Process orders data
+    const salesMap = new Map<string, number>();
+    const quantityMap = new Map<string, number>();
+
+    ordersData.forEach((order) => {
+      const dateStr = format(order.orderDate, "yyyy-MM-dd");
+
+      // Sum up total sales for this order
+      const orderTotal = order.totalCost;
+      salesMap.set(dateStr, (salesMap.get(dateStr) || 0) + orderTotal);
+
+      // Sum up total quantity for this order
+      const orderQuantity = order.orderItems.reduce(
+        (sum, item) => sum + item.quantity,
+        0
+      );
+      quantityMap.set(dateStr, (quantityMap.get(dateStr) || 0) + orderQuantity);
+    });
+
+    // Combine the data for all dates in the range
+    const result: SalesDataEntry[] = dateRange.map((date: Date) => {
+      const dateStr = format(date, "yyyy-MM-dd");
+      return {
+        date: dateStr,
+        totalSales: salesMap.get(dateStr) || 0,
+        totalQuantity: quantityMap.get(dateStr) || 0,
+      };
+    });
+    // console.log(result);
+    return result;
+  } catch (error) {
+    console.error("Database Error:", error);
+    throw new Error("Failed to fetch graph data.");
+  }
+}
+
+//getReport
+
+export async function getReport(
+  startDate: string,
+  endDate: string,
+  userId: string | undefined
+) {
+  const result = dateRangeSchema.safeParse({
+    startDate: startDate,
+    endDate: endDate,
+  });
+
+  if (!result.success) {
+    throw new Error("Invalid date");
+  }
+  const { startDate: start, endDate: end } = result.data;
+
+  const resultuser = createOrderSchema
+    .pick({ userId: true })
+    .safeParse({ userId: userId });
+
+  if (!resultuser.success) {
+    throw new Error("User Id Validation failed ");
+  }
+  const { userId: userIdVal } = resultuser.data;
+  try {
+    const orders = await prisma.order.findMany({
+      where: {
+        userId: userIdVal,
+        orderDate: {
+          gte: startOfDay(start),
+          lte: endOfDay(end),
+        },
+      },
+      select: {
+        id: true,
+        orderDate: true,
+        modeOfPayment: true,
+        orderType: true,
+        user: {
+          select: {
+            username: true,
+          },
+        },
+        orderItems: {
+          select: {
+            quantity: true,
+            itemCost: true,
+            iceCream: {
+              select: {
+                name: true,
+                category: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const detailedOrderItems: DetailedOrderItem[] = orders.flatMap((order) =>
+      order.orderItems.map((item) => ({
+        date: order.orderDate,
+        orderId: order.id,
+        modeOfPayment: order.modeOfPayment,
+        orderType: order.orderType,
+        username: order.user.username,
+        iceCreamName: item.iceCream.name,
+        cost: item.itemCost,
+        quantity: item.quantity,
+        category: item.iceCream.category,
+      }))
+    );
+    // console.log(detailedOrderItems);
+    return detailedOrderItems;
+  } catch (error) {
+    console.error("Database Error:", error);
+    throw new Error("Failed to fetch Detailed Order Items.");
+  }
+}
+
+//todaySales
+export async function getTodaySales(userId: string | undefined) {
+  const resultuser = createOrderSchema
+    .pick({ userId: true })
+    .safeParse({ userId: userId });
+
+  if (!resultuser.success) {
+    throw new Error("User Id Validation failed ");
+  }
+  const { userId: userIdVal } = resultuser.data;
+  const todayStart = startOfDay(new Date());
+  const todayEnd = endOfDay(new Date());
+  try {
+    const result = await prisma.order.aggregate({
+      _sum: {
+        totalCost: true,
+      },
+      where: {
+        userId: userIdVal,
+        orderDate: {
+          gte: todayStart, // Greater than or equal to start of today
+          lte: todayEnd, // Less than or equal to end of today
+        },
+      },
+    });
+
+    const totalSalesSum = result._sum.totalCost || 0; // Default to 0 if no orders
+    return totalSalesSum;
+  } catch (error) {
+    console.error("Database Error:", error);
+    throw new Error("Failed to fetch todays sales.");
+  }
 }

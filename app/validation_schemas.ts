@@ -42,6 +42,18 @@ export const createOrderSchema = z.object({
   totalCost: z.number(),
 });
 
+const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in the format YYYY-MM-DD")
+  .refine((date) => !isNaN(new Date(date).getTime()), {
+    message: "Invalid date",
+  })
+  .transform((date) => new Date(date));
+
+export const dateRangeSchema = z.object({
+  startDate: dateSchema,
+  endDate: dateSchema,
+});
 const createIceCreamSchemaWithId = createIceCreamSchema.extend({
   id: z.number(), // Add the id field of type number
 });

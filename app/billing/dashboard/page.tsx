@@ -1,9 +1,29 @@
+
 import React from 'react'
 
-const page = () => {
+import CardWrapper from '@/components/cards';
+import PieWrapper from '@/components/PieChart';
+import { DatePickerWithRange } from '@/components/graph';
+
+const Page = () => {
+ 
   return (
-    <div>Dashbord Page</div>
-  )
+    <main>
+    <h1 className={`mb-4 text-xl md:text-2xl`}>
+      Dashboard
+    </h1>
+    <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-2 pl-6 ">
+      <CardWrapper />
+      <PieWrapper /> 
+    </div>
+    <div className="mt-8 gap-5">
+<DatePickerWithRange />
+    </div>
+  </main>
+
+  );
 }
 
-export default page
+export default Page;
+
+
