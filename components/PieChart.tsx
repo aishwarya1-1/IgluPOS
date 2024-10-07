@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { auth } from '@/auth';
 import { getTopIcecreams } from '@/app/lib/actions';
 import { PieChartClient } from './PieChartClient';
@@ -7,6 +7,7 @@ import { PieChartClient } from './PieChartClient';
 export default async function PieWrapper() {
   const session = await auth(); 
   const userId = session?.user?.id;
+
 
   // Fetch data
   const iceCreamData = await getTopIcecreams(userId);

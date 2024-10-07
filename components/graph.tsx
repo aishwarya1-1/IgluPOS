@@ -13,30 +13,63 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { getSalesByDate } from "@/app/lib/actions"
+import { useUser } from "@/context/UserContext"
+import {SalesDataEntry} from "@/app/lib/actions"
+import { ComponentBar } from "./Bar"
+import { Report } from "./Report"
+
+
 
 export function DatePickerWithRange({
   className,
 }: React.HTMLAttributes<HTMLDivElement>) {
+  const { userId } = useUser();
   const today = new Date();
   const lastWeek = subWeeks(today, 1);
   const [date, setDate] = React.useState<DateRange | undefined>({
     from: lastWeek,
     to: today,
   })
-console.log(date)
 
-const handleGoClick = () => {
+  const [graphResults,setgraphResults]= React.useState<SalesDataEntry[] >([])
+  React.useEffect(() => {
+    const fetchData = async () => {
+      console.log('here')
+      const st=format(lastWeek, "yyyy-MM-dd")
+      const en=format(today, "yyyy-MM-dd")
+      try{
+      
+    const defaultRes=await getSalesByDate(st,en,userId)
+   
+    setgraphResults(defaultRes)
+
+      }catch(error){
+        console.log(error)
+      }
+    }
+    fetchData()
+  }, []);
+  React.useEffect(() => {
+    console.log('graphResults ',graphResults); // Log the updated graphResults
+  }, [graphResults]);
+
+const handleGoClick = async () => {
   if(date !== undefined){
   if (date.from && date.to) {
     const startDate = format(date.from, "yyyy-MM-dd");
     const endDate = format(date.to, "yyyy-MM-dd");
-    console.log("Start Date:", typeof(startDate));
+    console.log("Start Date:", startDate);
     console.log("End Date:", endDate);
-    // Do something with startDate and endDate here
+   const graphResult=await getSalesByDate(startDate,endDate,userId)
+   setgraphResults(graphResult)
+   console.log(graphResults)
   }
 }
 };
   return (
+    <div>
+    <div className ="flex space-x-10">
     <div className={cn("flex flex-col space-y-4 pl-10 p-5 border border-gray-300 rounded-md max-w-md ml-10", className)}>
       <Popover>
         <PopoverTrigger asChild>
@@ -76,6 +109,14 @@ const handleGoClick = () => {
         </PopoverContent>
       </Popover>
       <Button className= "w-20 pl-18" onClick={handleGoClick}>Go</Button>
+        
+      </div>
+      <Report data = {date} />
+      </div>
+      <div className="mt-6  pl-15"> {/* You can add margin or padding as needed */}
+      {graphResults!==undefined && graphResults.length > 0 && <ComponentBar data={graphResults}  />}
+      </div>
+      
     </div>
   )
 }

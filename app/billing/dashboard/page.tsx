@@ -16,6 +16,7 @@ const Page = () => {
       <CardWrapper />
       <PieWrapper /> 
     </div>
+    <hr className="solid mt-8"></hr>
     <div className="mt-8 gap-5">
 <DatePickerWithRange />
     </div>
