@@ -18,6 +18,7 @@ import { useUser } from "@/context/UserContext"
 import {SalesDataEntry} from "@/app/lib/actions"
 import { ComponentBar } from "./Bar"
 import { Report } from "./Report"
+import ErrorComponent from "./ErrorComponent"
 
 
 
@@ -33,9 +34,10 @@ export function DatePickerWithRange({
   })
 
   const [graphResults,setgraphResults]= React.useState<SalesDataEntry[] >([])
+  const [error, setError] = React.useState<string | null>(null);
   React.useEffect(() => {
     const fetchData = async () => {
-      console.log('here')
+     
       const st=format(lastWeek, "yyyy-MM-dd")
       const en=format(today, "yyyy-MM-dd")
       try{
@@ -45,28 +47,39 @@ export function DatePickerWithRange({
     setgraphResults(defaultRes)
 
       }catch(error){
-        console.log(error)
-      }
+        const errorMessage =
+    error instanceof Error ? error.message : "An unknown error occurred";
+    setError(errorMessage)
+}
     }
     fetchData()
   }, []);
-  React.useEffect(() => {
-    console.log('graphResults ',graphResults); // Log the updated graphResults
-  }, [graphResults]);
+  // React.useEffect(() => {
+  //   console.log('graphResults ',graphResults); // Log the updated graphResults
+  // }, [graphResults]);
 
 const handleGoClick = async () => {
   if(date !== undefined){
   if (date.from && date.to) {
     const startDate = format(date.from, "yyyy-MM-dd");
     const endDate = format(date.to, "yyyy-MM-dd");
-    console.log("Start Date:", startDate);
-    console.log("End Date:", endDate);
+ try{
    const graphResult=await getSalesByDate(startDate,endDate,userId)
+   
    setgraphResults(graphResult)
-   console.log(graphResults)
+ }catch(error){
+  const errorMessage =
+  error instanceof Error ? error.message : "An unknown error occurred";
+  setError(errorMessage)
+ }
+
   }
 }
 };
+
+if (error) {
+  return <ErrorComponent message={error} />;
+}
   return (
     <div>
     <div className ="flex space-x-10">

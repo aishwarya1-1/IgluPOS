@@ -9,10 +9,8 @@ const Page = () => {
  
   return (
     <main>
-    <h1 className={`mb-4 text-xl md:text-2xl`}>
-      Dashboard
-    </h1>
-    <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-2 pl-6 ">
+   
+    <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-2 pl-6 mt-5 ">
       <CardWrapper />
       <PieWrapper /> 
     </div>

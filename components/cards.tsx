@@ -8,6 +8,7 @@ import {
   } from '@heroicons/react/24/outline';
   
   import React from 'react';
+import ErrorComponent from './ErrorComponent';
   
   const iconMap = {
     collected: BanknotesIcon,
@@ -17,7 +18,18 @@ import {
   export default async function CardWrapper() {
     const session = await auth(); 
     const userId = session?.user?.id;
-    const totalSalesSum=await getTodaySales(userId)
+    
+    let totalSalesSum;
+    try {
+     
+        totalSalesSum=await getTodaySales(userId)
+
+      }
+     catch (error) {
+      const errorMessage =
+      error instanceof Error ? error.message : "An unknown error occurred";
+    return <ErrorComponent message={errorMessage} />;
+    }
     return (
       <>
       

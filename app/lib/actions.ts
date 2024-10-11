@@ -40,7 +40,7 @@ export type BillState = {
   message: string;
 };
 
-interface SalesDataEntry {
+export interface SalesDataEntry {
   date: string;
   totalSales: number;
   totalQuantity: number;
@@ -141,7 +141,7 @@ export async function UpdateIcecream(
 //getIcecream
 export async function getIceCreamData() {
   try {
-    await delay(1000);
+    await delay(500);
     const iceCreams: IceCream[] = await prisma.iceCream.findMany({
       select: {
         id: true,
