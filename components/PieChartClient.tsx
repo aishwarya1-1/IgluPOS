@@ -36,6 +36,8 @@ export function PieChartClient({ data }: PieChartProps) {
           'rgba(255, 206, 86, 0.2)',
           'rgba(75, 192, 192, 0.2)',
           'rgba(153, 102, 255, 0.2)',
+          'rgba(50, 205, 50, 0.2)',    // LimeGreen
+          'rgba(201, 203, 207, 0.2)',  // Grey
         ],
         borderColor: [
           'rgba(255, 99, 132, 1)',
@@ -43,6 +45,8 @@ export function PieChartClient({ data }: PieChartProps) {
           'rgba(255, 206, 86, 1)',
           'rgba(75, 192, 192, 1)',
           'rgba(153, 102, 255, 1)',
+          'rgba(50, 205, 50, 1)',    // LimeGreen
+          'rgba(201, 203, 207, 1)',  // Grey
         ],
         borderWidth: 1,
       },

@@ -29,8 +29,10 @@ export default async function PieWrapper() {
   }
 
   return (
-    <div className="w-full h-64">
+    <div className="w-full h-64 sm:h-48 md:h-64 lg:h-64 flex items-center "> {/* Center the chart */}
+    <div className="w-full h-full max-w-[300px]"> {/* Set max width for small screens */}
       <PieChartClient data={iceCreamData} />
     </div>
+  </div>
   );
 }

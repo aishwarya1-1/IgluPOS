@@ -20,6 +20,7 @@ interface CartContextType {
   decrementItem: (id: number) => void
   removeItem: (id: number) => void
   clearCart: () => void
+  populateCart: (items: CartItem[]) => void
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
@@ -67,6 +68,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const clearCart = () => {
     setCart([])
   }
+  const populateCart = (items: CartItem[]) => {
+    setCart(items)
+  }
 
   return (
     <CartContext.Provider
@@ -78,6 +82,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         decrementItem,
         removeItem,
         clearCart,
+        populateCart,
       }}
     >
       {children}

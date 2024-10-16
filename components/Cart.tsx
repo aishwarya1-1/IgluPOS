@@ -1,11 +1,17 @@
 'use client'
 
-import { useCart } from '../context/CartContext'
+import { useEffect, useState } from 'react'
+import { CartItem, useCart } from '../context/CartContext'
 
-export default function Cart({ cartErrors }: { cartErrors?: string[] }) {
-  const { cart, incrementItem, decrementItem, removeItem ,totalCost} = useCart()
+export default function Cart({ cartErrors}: { cartErrors?: string[] | null }) {
+  const { cart, incrementItem, decrementItem, removeItem, totalCost } = useCart()
 
 
+  // useEffect(() => {
+  //   if (cartKOT) {
+  //     populateCart(cartKOT)
+  //   } 
+  // }, [cartKOT ])
   return (
     <div className="bg-white p-6 rounded-lg shadow-md mb-8">
        {cartErrors && cartErrors.length > 0 && (

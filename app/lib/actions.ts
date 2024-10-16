@@ -146,7 +146,7 @@ export async function getIceCreamData() {
       select: {
         id: true,
         name: true,
-        cost: true, // Assuming "cost" is the price column in your schema
+        cost: true,
       },
     });
 
@@ -321,7 +321,7 @@ export async function createBill(
     totalCost: total,
     userId: user,
   } = validatedFields.data;
-  console.log(validatedCart, modeOfPayment, orderType, total, user);
+  // console.log(validatedCart, modeOfPayment, orderType, total, user);
   try {
     await prisma.$transaction(async (prisma) => {
       // Create the new order
@@ -591,8 +591,8 @@ export async function getTodaySales(userId: string | undefined) {
       where: {
         userId: userIdVal,
         orderDate: {
-          gte: todayStart, // Greater than or equal to start of today
-          lte: todayEnd, // Less than or equal to end of today
+          gte: todayStart,
+          lte: todayEnd,
         },
       },
     });

@@ -7,7 +7,7 @@ import React from 'react';
 import {
     BanknotesIcon,
     ChartBarIcon,
-
+ArrowLeftCircleIcon,
     PlusCircleIcon,
   } from '@heroicons/react/24/outline';
 
@@ -15,6 +15,7 @@ import {
     { name: 'Billing', path: '/billing',icon: BanknotesIcon },
     { name: 'Dashboard', path: '/billing/dashboard',icon :ChartBarIcon },
     { name: 'Add Item', path: '/billing/add-item' ,icon :PlusCircleIcon},
+    { name: 'KOT', path: '/billing/kot' ,icon :ArrowLeftCircleIcon},
   ];
 
 export const  NavLinks = () => {
@@ -34,7 +35,7 @@ export const  NavLinks = () => {
                     }`}
                 >
                     <LinkIcon className="w-6" />
-                    <p className="hidden md:block">{link.name}</p>
+                    <p className=" md:block">{link.name}</p>
                 </Link>
                   );
                 })}
