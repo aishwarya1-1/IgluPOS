@@ -2,7 +2,7 @@
 import React, {  useEffect, useState } from 'react';
 import {  useFormState } from 'react-dom'
 import { createIcecream,State } from '@/app/lib/actions';
-import { Button } from '@headlessui/react';
+// import { Button } from '@headlessui/react';
 
 const CreateIceCreamForm = () => {
   const initialState: State = { message: "", errors: {} };
@@ -102,12 +102,12 @@ const CreateIceCreamForm = () => {
           ))}
             </div>
         </div>
-        <Button
+        <button
           type="submit"
           className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition"
         >
           Add Item
-          </Button>
+          </button>
 
       </form>
     </div>

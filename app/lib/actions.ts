@@ -6,7 +6,7 @@ import {
   dateRangeSchema,
 } from "../validation_schemas";
 import { startOfDay, endOfDay, eachDayOfInterval, format } from "date-fns";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { CartItem, useCart } from "@/context/CartContext";
 import { IceCream } from "@/context/CartContext";
 import bcrypt from "bcryptjs";
@@ -15,6 +15,7 @@ import { AuthError } from "next-auth";
 const prisma = new PrismaClient();
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { JsonValue } from "@prisma/client/runtime/library";
 export type State = {
   errors?: {
     name?: string[];
@@ -242,6 +243,13 @@ export async function registerUser(prevState: UserState, formData: FormData) {
         email,
         username,
         password: hashedPassword,
+        userOrderCounter: {
+          create: {
+            counter: 1, // Initial counter value
+            KOTCounter: 1, // Initial KOTCounter value
+            lastUpdated: new Date(), // Set to the current date
+          },
+        },
       },
     });
 
@@ -300,6 +308,7 @@ export async function createBill(
   prevState: BillState,
   formData: FormData
 ) {
+  let userOrderId: number | null = null;
   const validatedFields = createOrderSchema.safeParse({
     cart: cart,
     modeOfPayment: formData.get("modeOfPayment"),
@@ -321,19 +330,29 @@ export async function createBill(
     totalCost: total,
     userId: user,
   } = validatedFields.data;
-  // console.log(validatedCart, modeOfPayment, orderType, total, user);
+
   try {
     await prisma.$transaction(async (prisma) => {
+      const userOrderCounter = await prisma.userOrderCounter.update({
+        where: { loginId: user },
+        data: {
+          counter: { increment: 1 }, // Increment the counter by 1
+        },
+        select: {
+          counter: true, // Retrieve the updated counter value
+        },
+      });
       // Create the new order
       const newOrder = await prisma.order.create({
         data: {
+          userOrderId: userOrderCounter.counter,
           modeOfPayment,
           orderType,
           totalCost: total,
           userId: user,
         },
       });
-
+      userOrderId = newOrder.userOrderId;
       await prisma.orderItems.createMany({
         data: validatedCart.map((item) => ({
           orderId: newOrder.id,
@@ -347,7 +366,7 @@ export async function createBill(
     revalidatePath("/billing/dashboard");
 
     return {
-      message: "Bill Added",
+      message: `Bill Added with userOrderId: ${userOrderId}`,
       errors: {},
     };
   } catch (error) {
@@ -602,5 +621,275 @@ export async function getTodaySales(userId: string | undefined) {
   } catch (error) {
     console.error("Database Error:", error);
     throw new Error("Failed to fetch todays sales.");
+  }
+}
+
+//kot order creation
+export async function updateKOTCounter(userId: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Reset to start of the day
+
+  const userCounter = await prisma.userOrderCounter.findUnique({
+    where: { loginId: parseInt(userId) },
+  });
+
+  // Check if we need to reset the counter for a new day
+  if (
+    !userCounter ||
+    !userCounter.lastUpdated ||
+    userCounter.lastUpdated < today
+  ) {
+    // Reset counter to 1 for a new day
+    const updatedCounter = await prisma.userOrderCounter.update({
+      where: { loginId: parseInt(userId) },
+      data: {
+        KOTCounter: 1,
+        lastUpdated: new Date(),
+      },
+      select: { KOTCounter: true },
+    });
+    return updatedCounter.KOTCounter;
+  } else {
+    // Increment the existing counter
+    const updatedCounter = await prisma.userOrderCounter.update({
+      where: { loginId: parseInt(userId) },
+      data: {
+        KOTCounter: { increment: 1 },
+        lastUpdated: new Date(),
+      },
+      select: { KOTCounter: true },
+    });
+    return updatedCounter.KOTCounter;
+  }
+}
+
+export async function createKOTBill(
+  cart: CartItem[][],
+  totalCost: number,
+  userId: string | undefined,
+  kotName: string
+) {
+  if (!userId) {
+    return { message: "User ID is required", kotNum: undefined };
+  }
+
+  try {
+    let kotNum;
+    const updatedCounter = await updateKOTCounter(userId);
+    // Create the new order
+    const newOrder = await prisma.kOTOrder.create({
+      data: {
+        kotNumber: updatedCounter,
+        kotName: kotName,
+        total: totalCost,
+        loginId: parseInt(userId),
+        cartItems: JSON.stringify(cart),
+      },
+      select: {
+        kotNumber: true, // Retrieve the updated counter value
+      },
+    });
+    kotNum = newOrder.kotNumber;
+
+    console.log("Done");
+    revalidatePath("/billing/kot");
+
+    return {
+      message: "KOT Bill Added",
+      kotNum: kotNum,
+    };
+  } catch (error) {
+    console.log(error);
+    return {
+      message: "Failed to add the KOTbill.",
+      kotNum: undefined,
+    };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+//fetchKOT orders
+
+export async function getKOTData(userId: string | undefined) {
+  try {
+    if (!userId || isNaN(parseInt(userId))) {
+      throw new Error("Invalid or missing user ID");
+    }
+    const kotOrders = await prisma.kOTOrder.findMany({
+      where: { loginId: parseInt(userId) },
+      select: {
+        id: true,
+        kotNumber: true,
+        kotName: true,
+        cartItems: true,
+        total: true,
+        lastUpdatedDate: true,
+      },
+    });
+
+    return {
+      success: true,
+      data: kotOrders,
+    };
+  } catch (error) {
+    console.error("Database Error:", error);
+    return {
+      success: false,
+      data: [],
+    };
+  }
+}
+
+export async function deleteKOTorder(kotid: number | undefined) {
+  if (kotid === undefined) {
+    throw new Error("KOT ID is required.");
+  }
+  if (typeof kotid === "string") {
+    kotid = parseInt(kotid);
+  }
+  try {
+    const deletedKOTOrder = await prisma.kOTOrder.delete({
+      where: {
+        id: kotid,
+      },
+    });
+  } catch (error) {
+    throw new Error("Failed to delete from KOT.");
+  }
+}
+
+//append
+export async function appendKOTorder(
+  kotid: number | undefined,
+  updatedCart: CartItem[],
+  totalCost: number,
+  userId: string | undefined
+) {
+  if (kotid === undefined) {
+    throw new Error("KOT ID is required.");
+  }
+  if (typeof kotid === "string") {
+    kotid = parseInt(kotid);
+  }
+  if (!userId) {
+    return { message: "User ID is required", kotNum: undefined };
+  }
+  try {
+    // Retrieve the current KOTOrder
+    const existingKOTOrder = await prisma.kOTOrder.findUnique({
+      where: { id: kotid },
+      select: { cartItems: true, total: true }, // Select only the cartItems field
+    });
+
+    if (!existingKOTOrder) {
+      throw new Error(`KOTOrder with ID ${kotid} not found.`);
+    }
+    let kotNum;
+    const updatedCounter = await updateKOTCounter(userId);
+    const cartItemsArray = existingKOTOrder.cartItems;
+
+    if (typeof cartItemsArray === "string") {
+      const jitem = JSON.parse(cartItemsArray);
+
+      jitem.push(updatedCart);
+      const finaltotal = existingKOTOrder.total + totalCost;
+      const updatedKOTOrder = await prisma.kOTOrder.update({
+        where: { id: kotid },
+        data: {
+          kotNumber: updatedCounter,
+          cartItems: JSON.stringify(jitem),
+          total: finaltotal,
+        },
+        select: {
+          kotNumber: true, // Retrieve the updated counter value
+        },
+      });
+      kotNum = updatedKOTOrder.kotNumber;
+    }
+    return {
+      message: "KOT Bill appended",
+      kotNum: kotNum,
+    };
+  } catch (error) {
+    console.error("Error appending KOT order:", error);
+    return {
+      message: "Failed to append the KOTbill.",
+      kotNum: undefined,
+    };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+export async function editKOTorder(
+  kotid: number | undefined,
+  updatedCart: CartItem[],
+  totalCost: number,
+  userId: string | undefined
+) {
+  if (kotid === undefined) {
+    throw new Error("KOT ID is required.");
+  }
+  if (typeof kotid === "string") {
+    kotid = parseInt(kotid);
+  }
+  if (!userId) {
+    return { message: "User ID is required", kotNum: undefined };
+  }
+  try {
+    // Retrieve the current KOTOrder
+    const existingKOTOrder = await prisma.kOTOrder.findUnique({
+      where: { id: kotid },
+      select: { cartItems: true, total: true }, // Select only the cartItems field
+    });
+
+    if (!existingKOTOrder) {
+      throw new Error(`KOTOrder with ID ${kotid} not found.`);
+    }
+    let kotNum;
+    const updatedCounter = await updateKOTCounter(userId);
+    const cartItemsArray = existingKOTOrder.cartItems;
+
+    if (typeof cartItemsArray === "string") {
+      const jitem = JSON.parse(cartItemsArray);
+      let lasttotal;
+      if (jitem.length > 0) {
+        const lastItem = jitem[jitem.length - 1];
+        lasttotal = lastItem.reduce(
+          (acc: number, item: CartItem) => acc + item.cost * item.quantity,
+          0
+        );
+        jitem[jitem.length - 1] = updatedCart;
+      }
+      let finaltotal;
+
+      finaltotal = existingKOTOrder.total + totalCost - lasttotal;
+
+      const updatedKOTOrder = await prisma.kOTOrder.update({
+        where: { id: kotid },
+        data: {
+          kotNumber: updatedCounter,
+          cartItems: JSON.stringify(jitem),
+          total: finaltotal,
+        },
+        select: {
+          kotNumber: true, // Retrieve the updated counter value
+        },
+      });
+      kotNum = updatedKOTOrder.kotNumber;
+    }
+
+    return {
+      message: "KOT Bill edited",
+      kotNum: kotNum,
+    };
+  } catch (error) {
+    console.error("Error editing KOT order:", error);
+
+    return {
+      message: "Failed to edit the KOTbill.",
+      kotNum: undefined,
+    };
+  } finally {
+    await prisma.$disconnect();
   }
 }

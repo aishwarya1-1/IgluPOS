@@ -2,11 +2,14 @@ import IceCreamList from '../../components/IceCreamList'
 import Checkout from '../../components/Checkout'
 interface HomeProps {
   searchParams: {
-    billKey?: string; 
+    kotid?: number; 
+    cartItems?: string;
+    kotAction?: string;
+    kotnum?:number
   };
 }
 export default async function Home({ searchParams }: HomeProps) {
-  const { billKey } = searchParams || {};
+  const { kotid,cartItems, kotAction,kotnum } = searchParams || {};
   
   return (
     <main className="container mx-auto px-4 py-8">
@@ -19,7 +22,7 @@ export default async function Home({ searchParams }: HomeProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <IceCreamList />
         <div>
-        <Checkout billKey={billKey} />
+        <Checkout kotid={kotid} cartItems={cartItems} kotAction={kotAction} kotnum={kotnum} />
         </div>
       </div>
     </main>

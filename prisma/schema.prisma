@@ -40,13 +40,20 @@ enum OrderType {
   Delivery
 }
 
+enum OrderStatus {
+  SUCCESS
+  CANCELLED
+}
+
 model Order {
   id            Int           @id @default(autoincrement())
+  userOrderId   Int
   orderDate     DateTime      @default(now())
   modeOfPayment ModeOfPayment
   orderType     OrderType
   totalCost     Float         @default(0.0)
   userId        Int
+  status        OrderStatus   @default(SUCCESS)
   // Relation field
   user          Login         @relation(fields: [userId], references: [id])
   orderItems    OrderItems[]
@@ -69,9 +76,31 @@ model OrderItems {
 }
 
 model Login {
-  id       Int     @id @default(autoincrement())
-  email    String  @db.VarChar(255)
-  username String  @unique @db.VarChar(255) // Ensure usernames are unique
-  password String  @db.VarChar(255) // Store hashed password
-  orders   Order[]
+  id               Int               @id @default(autoincrement())
+  email            String            @db.VarChar(255)
+  username         String            @unique @db.VarChar(255) // Ensure usernames are unique
+  password         String            @db.VarChar(255) // Store hashed password
+  orders           Order[]
+  kotOrders        KOTOrder[]
+  userOrderCounter UserOrderCounter?
+}
+
+model UserOrderCounter {
+  id          Int       @id @default(autoincrement())
+  counter     Int // Tracks the user-specific order ID
+  KOTCounter  Int
+  lastUpdated DateTime? // Automatically updated when created
+  loginId     Int       @unique // Ensures each user has only one counter
+  login       Login     @relation(fields: [loginId], references: [id])
+}
+
+model KOTOrder {
+  id              Int      @id @default(autoincrement())
+  kotNumber       Int // Stores the current counter value for the KOT order
+  kotName         String   @db.VarChar(255)
+  cartItems       Json // Stores a list of lists of cart items
+  total           Float    @default(0.0)
+  lastUpdatedDate DateTime @updatedAt // Automatically updates on each modification
+  loginId         Int // Foreign key to reference the Login model
+  login           Login    @relation(fields: [loginId], references: [id]) // Defines the relation to Login
 }
