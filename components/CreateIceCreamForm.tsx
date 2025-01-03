@@ -12,7 +12,7 @@ const CreateIceCreamForm = () => {
 
   useEffect(() => {
     console.log("State changed:", state);
-    if (state.message === "Ice cream added successfully") {
+    if (state.message === "Added successfully") {
       console.log("Resetting form...");
       setKey(prevKey => prevKey + 1);
     }
@@ -24,7 +24,7 @@ const CreateIceCreamForm = () => {
           {state.message && (
       <div
         className={`mb-4 p-2 rounded ${
-          state.message === "Ice cream added successfully"
+          state.message === "Added successfully"
             ? "bg-green-100 text-green-700"
             : "bg-red-100 text-red-700"
         }`}
@@ -69,8 +69,8 @@ const CreateIceCreamForm = () => {
           >
              <option value="">Select a category</option>
             <option value="IceCream">IceCream</option>
-            <option value="milkshakes">Milkshakes</option>
-            <option value="waffles">Waffles</option>
+            <option value="MilkShakes">Milkshakes</option>
+            <option value="Falooda">Falooda</option>
            
           </select>
           <div id="category-error" aria-live="polite" aria-atomic="true">

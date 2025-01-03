@@ -83,7 +83,7 @@ export async function createIcecream(prevState: State, formData: FormData) {
     });
     revalidatePath("/billing");
     return {
-      message: "Ice cream added successfully",
+      message: "Added successfully",
       errors: {},
     };
   } catch (error) {
