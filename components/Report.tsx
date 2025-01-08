@@ -25,6 +25,8 @@ export function Report({ data }: { data: DateRange | undefined }) {
             "Quantity",
             "GST",
             "Category",
+            "Addons",
+            "AddonsTotal",
             "Final Total",
         ];
 
@@ -32,11 +34,21 @@ export function Report({ data }: { data: DateRange | undefined }) {
             headers.join(","),
             ...data.map((item) =>
                 headers
-                    .map((header) =>
-                        typeof item[header as keyof TransformedOrderItem] === "string"
-                            ? `"${item[header as keyof TransformedOrderItem]}"`
-                            : item[header as keyof TransformedOrderItem]
-                    )
+                    .map((header) => {
+                        const value = item[header as keyof TransformedOrderItem];
+                        if (header === "Addons" && value) {
+                            const addons = value as {
+                                cone: Array<{ addonName: string; addonPrice: number; addonQuantity: number }>;
+                                topping: Array<{ addonName: string; addonPrice: number; addonQuantity: number }>;
+                            };
+                            const formattedAddons = [
+                                ...addons.cone.map(a => `${a.addonName}(${a.addonQuantity})`),
+                                ...addons.topping.map(a => `${a.addonName}(${a.addonQuantity})`)
+                            ].join('; ');
+                            return `"${formattedAddons}"`;
+                        }
+                        return typeof value === "string" ? `"${value}"` : value;
+                    })
                     .join(",")
             ),
         ].join("\n");
@@ -68,7 +80,11 @@ export function Report({ data }: { data: DateRange | undefined }) {
                 const detailedOrders = await getReport(startDate, endDate, userId);
                 const transformedData = detailedOrders.map((order) => {
                     const gst = order.cost * 0.1; // 10% tax
-                    const finalTotal = (order.cost * order.quantity) + gst;
+                    const addonsTotal = (order.addons?.cone?.reduce((total, addon) => 
+                        total + addon.addonPrice * addon.addonQuantity, 0) ?? 0) + 
+                        (order.addons?.topping?.reduce((total, addon) => 
+                        total + addon.addonPrice * addon.addonQuantity, 0) ?? 0);
+                    const finalTotal = (order.cost * order.quantity) + gst + (addonsTotal ?? 0);
                     
                     return {
                         Date: format(order.date, "yyyy-MM-dd HH:mm:ss"),
@@ -81,6 +97,8 @@ export function Report({ data }: { data: DateRange | undefined }) {
                         Quantity: order.quantity,
                         GST: gst,
                         Category: order.category,
+                        "Addons": order.addons,
+                        "AddonsTotal": addonsTotal,
                         "Final Total": finalTotal,
                     };
                 });

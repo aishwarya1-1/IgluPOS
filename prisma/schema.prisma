@@ -26,6 +26,8 @@ enum Category {
   IceCream
   Falooda
   MilkShakes
+  Topping
+  Cone
 }
 
 enum ModeOfPayment {
@@ -60,13 +62,14 @@ model Order {
 }
 
 model OrderItems {
-  id       Int   @id @default(autoincrement())
-  quantity Int   @default(1)
-  itemCost Float // Stores the price of one unit of the ice cream
+  id          Int   @id @default(autoincrement())
+  quantity    Int   @default(1)
+  itemCost    Float // Stores the price of one unit of the ice cream
 
+  addons      Json  @default("{}")
   // Foreign keys
-  orderId    Int
-  iceCreamId Int
+  orderId     Int
+  iceCreamId  Int
 
   // Relations
   order    Order    @relation(fields: [orderId], references: [id])

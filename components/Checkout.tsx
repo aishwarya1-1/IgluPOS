@@ -8,25 +8,25 @@ import { useEffect, useState } from 'react';
 import Cart from './Cart';
 import { useRouter } from 'next/navigation'; 
 import { JsonValue } from '@prisma/client/runtime/library';
+import { useToast } from "@/hooks/use-toast"
 
-import { redirect } from "next/navigation";
-
-
-export default function Checkout({ kotid,cartItems, kotAction,kotnum }: { kotid?: number; kotAction?: string ;cartItems?:string; kotnum? :number}) {
+export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: number; kotAction?: string ;cartItems?:string;}) {
   const { cart, clearCart, totalCost, populateCart } = useCart();
   const { userId } = useUser();
- // const [cartItemsState, setCartItemsState] = useState<JsonValue | null>(null);
-  const [kotActionState, setKotActionState] = useState<string | undefined>(kotAction);
+  const { toast } = useToast()
+  const [kotActionState, setKotActionState] = useState<string | undefined>();
   const [kotSaveState, setKotSaveState] = useState<number>(10000);
-  //const [kotNumState, setKotNumState] = useState<number | undefined>(10000);
-  const createBilling = async (prevState: BillState, formData: FormData,kotActionState?: string ) => {
-    if (!kotActionState) {
-      // Call the handleCheckoutBilling function
+  const createBilling = async (prevState: BillState, formData: FormData ) => {
+    const currentKotActionState = kotActionState;
+    if (!currentKotActionState) { 
+      console.log(kotActionState)
       if(userId){
       const kotSave=await updateKOTCounter( userId);
       setKotSaveState(kotSave)
       }
+     
     }
+   
   
     return createBill(cart, totalCost, userId, prevState, formData);
     
@@ -39,7 +39,7 @@ export default function Checkout({ kotid,cartItems, kotAction,kotnum }: { kotid?
   const [customerName, setCustomerName] = useState("");
   const [billKeyKOT, setBillKeyKOT] = useState<number | undefined>(kotid);
   const router = useRouter();
-  const [displayMessage, setDisplayMessage] = useState(initialState.message);
+  // const [displayMessage, setDisplayMessage] = useState(initialState.message);
   const [isKOTDisabled, setIsKOTDisabled] = useState(false);
   const [isSaveAndPrintDisabled, setIsSaveAndPrintDisabled] = useState(false);
 
@@ -82,6 +82,7 @@ export default function Checkout({ kotid,cartItems, kotAction,kotnum }: { kotid?
       <html>
         <head>
           <title>Customer Bill</title>
+          
           <style>${getCommonPrintStyles()}</style>
         </head>
         <body>
@@ -98,6 +99,23 @@ export default function Checkout({ kotid,cartItems, kotAction,kotnum }: { kotid?
                 <span>${item.name} x ${item.quantity}</span>
                 <span>Rs.${(item.cost * item.quantity).toFixed(2)}</span>
               </div>
+              ${item.addons ? `
+                <div class="addons" style="margin-left: 20px; font-size: 11px;">
+                  <div>Addons:</div>
+                  ${item.addons.cone.map(addon => `
+                    <div class="addon-item">
+                      <span>${addon.addonName} x ${addon.addonQuantity}</span>
+                      <span>Rs.${(addon.addonPrice * addon.addonQuantity).toFixed(2)}</span>
+                    </div>
+                  `).join('')}
+                  ${item.addons.topping.map(addon => `
+                    <div class="addon-item">
+                      <span>${addon.addonName} x ${addon.addonQuantity}</span>
+                      <span>Rs.${(addon.addonPrice * addon.addonQuantity).toFixed(2)}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
             `).join('')}
           </div>
           <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
@@ -158,6 +176,21 @@ export default function Checkout({ kotid,cartItems, kotAction,kotnum }: { kotid?
                 <span style="font-size: 14px; font-weight: bold;">${item.quantity}x</span>
                 <span style="font-size: 14px;">${item.name}</span>
               </div>
+              ${item.addons ? `
+                <div class="addons" style="margin-left: 40px; font-size: 12px;">
+                  <div>Addons:</div>
+                  ${item.addons.cone.map(addon => `
+                    <div style="margin-left: 10px;">
+                      ${addon.addonName} x ${addon.addonQuantity}
+                    </div>
+                  `).join('')}
+                  ${item.addons.topping.map(addon => `
+                    <div style="margin-left: 10px;">
+                      ${addon.addonName} x ${addon.addonQuantity}
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
             `).join('')}
           </div>
           <script>
@@ -183,6 +216,7 @@ export default function Checkout({ kotid,cartItems, kotAction,kotnum }: { kotid?
 useEffect(() => {
   const handleKotAction = async () => {
     if (!kotAction) {
+      setKotActionState(undefined)
       setIsSaveAndPrintDisabled(false);
       setIsKOTDisabled(false);
       return;
@@ -196,13 +230,11 @@ useEffect(() => {
       setIsSaveAndPrintDisabled(false);
     } else if (kotAction === 'append') {
       setKotActionState('append');
-      //setKotNumState(kotnum)
-      setIsSaveAndPrintDisabled(true);
+     setIsSaveAndPrintDisabled(true);
       setIsKOTDisabled(false);
       clearCart();
     } else if (kotAction === 'edit') {
       setKotActionState('edit');
-     // setKotNumState(kotnum)
       setIsSaveAndPrintDisabled(true);
       setIsKOTDisabled(false);
     }
@@ -231,11 +263,17 @@ useEffect(() => {
         populateCart(consolidatedArray);
       }
     } else if (!cartItems && (kotAction === 'checkout' || kotAction === 'edit')) {
-      setDisplayMessage('Cart is empty. Something went wrong');
+      toast({
+        title: "Error",
+        description: "Cart is empty. Something went wrong'",
+        variant: "destructive",
+      });
+   
     }
   };
 
   handleKotAction();
+  console.log('kot',kotActionState)
 }, [kotAction]);
 
 // useEffect for handling printing based on state.message
@@ -243,10 +281,18 @@ useEffect(() => {
   let hasPrinted = false;
 
   const handlePrint = async () => {
-    if (!state.message.startsWith('Bill Added') || hasPrinted) return;
+    if (state.message.startsWith('Failed to add')) {
+      toast({
+        title: "Error",
+        description: 'Failed to Add Bill',
+        variant: "destructive",
+      });
+      return
+    }
+    if(!state.message || hasPrinted) {
+      return}
     hasPrinted = true;
 
-    console.log('here');
     const userOrderIdMatch = state.message.match(/Bill Added with userOrderId: (\d+)/);
     const userOrderId = userOrderIdMatch ? userOrderIdMatch[1] : null;
     console.log('userOrderId', userOrderId);
@@ -254,7 +300,7 @@ useEffect(() => {
 
     if (kotActionState === 'checkout') {
       await printCustomerBill(userOrderId);
-      await deleteKOTorder(billKeyKOT);
+      await deleteKOTorder(billKeyKOT,userId);
     } else {
       await printCustomerBill(userOrderId);
 
@@ -268,71 +314,21 @@ useEffect(() => {
       });
 
       setTimeout(() => printKitchenOrder(kotSaveState), 1000);
+   
     }
 
     // Clear cart and reset page
     clearCart();
+    toast({
+      title: "Success",
+      description: "Bill Added",
+     
+    });
     router.push('/billing');
   };
 
   handlePrint();
 }, [state.message]);
-
-// Timeout to clear display message after 3 seconds
-useEffect(() => {
-  const timer = setTimeout(() => {
-    setDisplayMessage('');
-  }, 3000);
-
-  return () => clearTimeout(timer);
-}, [state.message]);
-
-  
-   //     const item = localStorage.getItem(billKeyKOT);
-  //     if (item) {
-  //       const parsedData = JSON.parse(item);
-  //       populateCart(parsedData.cart);
-  //     }
-  //   }
-  
-  //   setDisplayMessage(state.message); 
-  //   if (state.message === 'Bill Added') {
-  //     setKey((prevKey) => prevKey + 1);
-  //     if(billKeyKOT){
-  //       localStorage.removeItem(billKeyKOT);
-  //       setBillKeyKOT("");
-  //     }
-  //     const handleSequentialPrinting = async () => {
-
-  //       printCustomerBill();
-        
-  //       // Wait for the first print to complete
-  //       await new Promise(resolve => {
-  //         const checkPrintWindow = setInterval(() => {
-  //           if (!window.frames[0]) {  
-  //             clearInterval(checkPrintWindow);
-  //             resolve(true);
-  //           }
-  //         }, 500);
-  //       });
-
-  //       setTimeout(() => {
-  //         printKitchenOrder(1000);
-  //       }, 1000);
-  //     };
-
-  //     handleSequentialPrinting();
-   
-  //     clearCart();
-  //     router.push('/billing');
-  //   }
-    
-  //   const timer = setTimeout(() => {
-  //     state.message = "";
-  //     setDisplayMessage(""); 
-  //   }, 3000);
-
-  //   return () => clearTimeout(timer);
 
 
   const handleSave = async () => {
@@ -345,14 +341,19 @@ useEffect(() => {
           const appendRes=await appendKOTorder(billKeyKOT,cart,totalCost,userId)
           printKitchenOrder(appendRes.kotNum);
         clearCart();
-        
-        setDisplayMessage('New Items added to KOT');
-        setTimeout(() => {
-          setDisplayMessage("");
-        }, 3000);
+        toast({
+          title: "Success",
+          description: 'New Items added to KOT',
+        });
+   
         router.push('/billing');
           }catch(error){
             console.log(error)
+            toast({
+              title: "Error",
+              description: "Something went wrong,Failed to Add",
+              variant: "destructive",
+            });
           }
         }
         else if(kotActionState==='edit'){
@@ -360,13 +361,18 @@ useEffect(() => {
           const editRes=await editKOTorder(billKeyKOT,cart,totalCost,userId)
           printKitchenOrder(editRes.kotNum);
           clearCart();
-          setDisplayMessage('New Items added to KOT');
-          setTimeout(() => {
-            setDisplayMessage("");
-          }, 3000);
+          toast({
+            title: "Success",
+            description: 'Last KOT order Edited',
+          });
           router.push('/billing');
           }catch(error){
             console.log(error)
+            toast({
+              title: "Error",
+              description: "Something went wrong,Failed to Edit",
+              variant: "destructive",
+            });
           }
         }
       } else {
@@ -375,28 +381,26 @@ useEffect(() => {
         console.log(response.kotNum)
         printKitchenOrder(response.kotNum);
         clearCart();
-        setDisplayMessage(response.message);
-        setTimeout(() => {
-          setDisplayMessage("");
-        }, 3000);
+        toast({
+          title: "Success",
+          description: 'KOT Added',
+        });
        
       }
       }
       
-    
-      // if(billKeyKOT) {
-      //   router.push('/billing');
-      // }
+   
     } catch (error) {
       console.error('Error saving bill:', error);
       let errorMessage = "An error occurred while saving the bill";
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-      setDisplayMessage(errorMessage);
-      setTimeout(() => {
-        setDisplayMessage("");
-      }, 3000);
+      toast({
+        title: "Error",
+        description:'An error occurred while saving the bill',
+        variant: "destructive",
+      });
     }
   };
   const handleCancel =() =>{
@@ -427,17 +431,7 @@ useEffect(() => {
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-md max-w-md mx-auto">
-      {displayMessage && (
-        <div
-          className={`mb-4 p-2 rounded text-sm ${
-            displayMessage.startsWith('Bill Added') || displayMessage === 'KOT Bill Added'
-              ? 'bg-green-100 text-green-700'
-              : 'bg-red-100 text-red-700'
-          }`}
-        >
-          {displayMessage}
-        </div>
-      )}
+   
       <Cart cartErrors={state.errors?.cart} />
 
       <h2 className="text-xl font-semibold mb-4">Checkout</h2>

@@ -56,6 +56,18 @@ export interface DetailedOrderItem {
   cost: number;
   quantity: number;
   category: string;
+  addons?: {
+    cone: Array<{
+      addonName: string;
+      addonPrice: number;
+      addonQuantity: number;
+    }>;
+    topping: Array<{
+      addonName: string;
+      addonPrice: number;
+      addonQuantity: number;
+    }>;
+  };
 }
 
 export async function createIcecream(prevState: State, formData: FormData) {
@@ -163,7 +175,34 @@ export async function getIceCreamData() {
     };
   }
 }
+export async function getAdonsData() {
+  try {
+    const iceCreams = await prisma.iceCream.findMany({
+      where: {
+        category: {
+          in: ["Topping", "Cone"], // Filter for items with category Topping or Cone
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        cost: true,
+        category: true,
+      },
+    });
 
+    return {
+      success: true,
+      data: iceCreams,
+    };
+  } catch (error) {
+    console.error("Database Error:", error);
+    return {
+      success: false,
+      data: [],
+    };
+  }
+}
 export async function getIceCreamById(id: number) {
   try {
     const iceCream = await prisma.iceCream.findUnique({
@@ -308,6 +347,7 @@ export async function createBill(
   prevState: BillState,
   formData: FormData
 ) {
+  console.log("we are here");
   let userOrderId: number | null = null;
   const validatedFields = createOrderSchema.safeParse({
     cart: cart,
@@ -359,10 +399,11 @@ export async function createBill(
           iceCreamId: item.id,
           quantity: item.quantity,
           itemCost: item.cost,
+          addons: item.addons,
         })),
       });
     });
-    console.log("Done");
+
     revalidatePath("/billing/dashboard");
 
     return {
@@ -558,6 +599,7 @@ export async function getReport(
           select: {
             quantity: true,
             itemCost: true,
+            addons: true,
             iceCream: {
               select: {
                 name: true,
@@ -580,6 +622,20 @@ export async function getReport(
         cost: item.itemCost,
         quantity: item.quantity,
         category: item.iceCream.category,
+        addons: item.addons as
+          | {
+              cone: Array<{
+                addonName: string;
+                addonPrice: number;
+                addonQuantity: number;
+              }>;
+              topping: Array<{
+                addonName: string;
+                addonPrice: number;
+                addonQuantity: number;
+              }>;
+            }
+          | undefined,
       }))
     );
     // console.log(detailedOrderItems);
@@ -740,16 +796,23 @@ export async function getKOTData(userId: string | undefined) {
   }
 }
 
-export async function deleteKOTorder(kotid: number | undefined) {
+export async function deleteKOTorder(
+  kotid: number | undefined,
+  userId: string | undefined
+) {
   if (kotid === undefined) {
     throw new Error("KOT ID is required.");
   }
   if (typeof kotid === "string") {
     kotid = parseInt(kotid);
   }
+  if (!userId) {
+    return { message: "User ID is required", kotNum: undefined };
+  }
   try {
     const deletedKOTOrder = await prisma.kOTOrder.delete({
       where: {
+        loginId: parseInt(userId),
         id: kotid,
       },
     });
@@ -777,7 +840,7 @@ export async function appendKOTorder(
   try {
     // Retrieve the current KOTOrder
     const existingKOTOrder = await prisma.kOTOrder.findUnique({
-      where: { id: kotid },
+      where: { loginId: parseInt(userId), id: kotid },
       select: { cartItems: true, total: true }, // Select only the cartItems field
     });
 
@@ -794,7 +857,7 @@ export async function appendKOTorder(
       jitem.push(updatedCart);
       const finaltotal = existingKOTOrder.total + totalCost;
       const updatedKOTOrder = await prisma.kOTOrder.update({
-        where: { id: kotid },
+        where: { loginId: parseInt(userId), id: kotid },
         data: {
           kotNumber: updatedCounter,
           cartItems: JSON.stringify(jitem),
@@ -838,7 +901,7 @@ export async function editKOTorder(
   try {
     // Retrieve the current KOTOrder
     const existingKOTOrder = await prisma.kOTOrder.findUnique({
-      where: { id: kotid },
+      where: { loginId: parseInt(userId), id: kotid },
       select: { cartItems: true, total: true }, // Select only the cartItems field
     });
 
@@ -865,7 +928,7 @@ export async function editKOTorder(
       finaltotal = existingKOTOrder.total + totalCost - lasttotal;
 
       const updatedKOTOrder = await prisma.kOTOrder.update({
-        where: { id: kotid },
+        where: { loginId: parseInt(userId), id: kotid },
         data: {
           kotNumber: updatedCounter,
           cartItems: JSON.stringify(jitem),
@@ -888,6 +951,44 @@ export async function editKOTorder(
     return {
       message: "Failed to edit the KOTbill.",
       kotNum: undefined,
+    };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export async function cancelBill(
+  billNumber: string,
+  userId: string | undefined
+) {
+  if (!userId) {
+    return { message: "User ID is required", kotNum: undefined };
+  }
+  try {
+    const result = await prisma.order.updateMany({
+      where: {
+        userId: parseInt(userId),
+        userOrderId: parseInt(billNumber),
+      },
+      data: {
+        status: "CANCELLED",
+      },
+    });
+    if (result.count === 0) {
+      return {
+        success: false,
+        message: "Bill number doesnt exist",
+      };
+    }
+
+    return {
+      success: true,
+      message: "Bill Cancelled Successfully",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: "Bill Cancellation Failed",
     };
   } finally {
     await prisma.$disconnect();

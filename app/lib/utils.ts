@@ -15,6 +15,19 @@ export interface TransformedOrderItem {
   Quantity: number;
   GST: number;
   Category: string;
+  Addons?: {
+    cone: Array<{
+      addonName: string;
+      addonPrice: number;
+      addonQuantity: number;
+    }>;
+    topping: Array<{
+      addonName: string;
+      addonPrice: number;
+      addonQuantity: number;
+    }>;
+  };
+  AddonsTotal: number;
   "Final Total": number;
 }
 

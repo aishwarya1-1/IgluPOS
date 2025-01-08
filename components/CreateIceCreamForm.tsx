@@ -71,6 +71,8 @@ const CreateIceCreamForm = () => {
             <option value="IceCream">IceCream</option>
             <option value="MilkShakes">Milkshakes</option>
             <option value="Falooda">Falooda</option>
+            <option value="Topping">Topping</option>
+            <option value="Cone">Cone</option>
            
           </select>
           <div id="category-error" aria-live="polite" aria-atomic="true">

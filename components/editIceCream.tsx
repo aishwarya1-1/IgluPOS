@@ -11,10 +11,6 @@ const EditIceCreamForm =({ initialData }: { initialData: CreateIcecream | null})
     const [state, formAction] = useFormState(updateInvoiceWithId, initialState);
 
 
-
-
-
-
   return (
     <div className="max-w-md mx-auto p-4 bg-white rounded-lg shadow-md">
       <h2 className="text-2xl font-semibold mb-4">Edit Ice Cream Item</h2>
@@ -53,9 +49,11 @@ const EditIceCreamForm =({ initialData }: { initialData: CreateIcecream | null})
           aria-describedby="category-error"
           >
          <option value="">Select a category</option>
-            <option value="IceCream">IceCream</option>
-            <option value="milkshakes">Milkshakes</option>
-            <option value="waffles">Waffles</option>
+         <option value="IceCream">IceCream</option>
+            <option value="MilkShakes">Milkshakes</option>
+            <option value="Falooda">Falooda</option>
+            <option value="Topping">Topping</option>
+            <option value="Cone">Cone</option>
           </select>
           <div id="category-error" aria-live="polite" aria-atomic="true">
               {state.errors?.category && state.errors.category.map((error:string)=>(

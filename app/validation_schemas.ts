@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const createIceCreamSchema = z.object({
   name: z.string().nonempty({ message: "Name is required" }),
-  category: z.enum(["IceCream", "Falooda", "MilkShakes"], {
+  category: z.enum(["IceCream", "Falooda", "MilkShakes", "Topping", "Cone"], {
     message: "Please Select a Category .",
   }),
   cost: z.coerce
@@ -21,11 +21,23 @@ export const registerUserSchema = z.object({
   password: z.string().nonempty("Password is required"),
 });
 
+const AddonItemSchema = z.object({
+  addonName: z.string(),
+  addonPrice: z.number(),
+  addonQuantity: z.number(),
+});
+
+const AddonsSchema = z.object({
+  cone: z.array(AddonItemSchema),
+  topping: z.array(AddonItemSchema),
+});
+
 const CartItemSchema = z.object({
   id: z.number(),
   name: z.string(),
   cost: z.number(),
   quantity: z.number(),
+  addons: AddonsSchema.optional(),
 });
 
 export const createOrderSchema = z.object({

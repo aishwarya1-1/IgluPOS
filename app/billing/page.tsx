@@ -5,11 +5,10 @@ interface HomeProps {
     kotid?: number; 
     cartItems?: string;
     kotAction?: string;
-    kotnum?:number
   };
 }
 export default async function Home({ searchParams }: HomeProps) {
-  const { kotid,cartItems, kotAction,kotnum } = searchParams || {};
+  const { kotid,cartItems, kotAction } = searchParams || {};
   
   return (
     <main className="container mx-auto px-4 py-8">
@@ -22,7 +21,7 @@ export default async function Home({ searchParams }: HomeProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <IceCreamList />
         <div>
-        <Checkout kotid={kotid} cartItems={cartItems} kotAction={kotAction} kotnum={kotnum} />
+        <Checkout kotid={kotid} cartItems={cartItems} kotAction={kotAction}/>
         </div>
       </div>
     </main>
