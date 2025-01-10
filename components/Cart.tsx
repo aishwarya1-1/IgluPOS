@@ -2,25 +2,27 @@
 
 import { useState, useEffect } from 'react'
 import { useCart } from '../context/CartContext'
+import { Menu, Transition } from '@headlessui/react'
 import { TrashIcon, PlusIcon, XMarkIcon } from '@heroicons/react/20/solid'
-import { getAdonsData } from '../app/lib/actions'
-// import { IceCream } from '../context/CartContext'
-// Update the type to match your database structure
+import Link  from 'next/link'
+import { deleteAddonById, getAdonsData } from '../app/lib/actions'
+import { EllipsisVerticalIcon } from '@heroicons/react/20/solid'; // Adjust the path if necessary
+import { useRouter } from 'next/navigation'
+
+
 type Addon = {
   id: number
   name: string
-  cost: number,
+  price: number
   category: string
 }
-type AddonName = string
+
 export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
+  const router = useRouter();
   const { cart, incrementItem, decrementItem, removeItem, addAddonToIcecream, decrementAddon, calculateTotalWithAddons ,removeAddonFromIcecream,totalCost} = useCart()
   const [showAddons, setShowAddons] = useState<{ [key: number]: boolean }>({})
   const [addonType, setAddonType] = useState<{ [key: number]: string | null }>({})
   const [searchQuery, setSearchQuery] = useState('')
-  // const [selectedAddons, setSelectedAddons] = useState<{
-  //   [key: number]: { [K in AddonName]?: number }
-  // }>({})
   const [addons, setAddons] = useState<Addon[]>([])
 
   // Fetch addons on component mount
@@ -34,14 +36,7 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
     fetchAddons()
   }, [])
 
-  // Compute derived data from fetched addons
-  // const coneOptions = addons.filter(addon => addon.category === 'Cone').map(addon => addon.name)
-  // const toppingOptions = addons.filter(addon => addon.category === 'Topping').map(addon => addon.name)
-  
-  // // Replace the hardcoded ADDON_PRICES with a derived object
-  // const ADDON_PRICES = Object.fromEntries(
-  //   addons.map(addon => [addon.name, addon.cost])
-  // )
+
 
   const handleAddonsToggle = (itemId: number) => {
     setShowAddons((prev) => ({
@@ -63,68 +58,25 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
     setSearchQuery(e.target.value)
   }
 
-  // const handleAddonClick = (itemId: number, addon: AddonName) => {
-  //   setSelectedAddons((prev) => ({
-  //     ...prev,
-  //     [itemId]: {
-  //       ...prev[itemId],
-  //       [addon]: ((prev[itemId]?.[addon] || 0) + 1) as number
-  //     }
-  //   }))
-  //   setSearchQuery('')
-  // }
-
-  // const decrementAddon = (itemId: number, addon: AddonName) => {
-  //   setSelectedAddons((prev) => {
-  //     const currentQuantity = prev[itemId]?.[addon] || 0
-  //     if (currentQuantity <= 1) {
-  //       const { [addon]: _, ...rest } = prev[itemId] || {}
-  //       return {
-  //         ...prev,
-  //         [itemId]: rest
-  //       }
-  //     }
-  //     return {
-  //       ...prev,
-  //       [itemId]: {
-  //         ...prev[itemId],
-  //         [addon]: currentQuantity - 1
-  //       }
-  //     }
-  //   })
-  // }
-
-  // const removeAddon = (itemId: number, addon: AddonName) => {
-  //   setSelectedAddons((prev) => {
-  //     const { [addon]: _, ...rest } = prev[itemId] || {}
-  //     return {
-  //       ...prev,
-  //       [itemId]: rest
-  //     }
-  //   })
-  // }
-
+  
   const closeAddons = (itemId: number) => {
     setShowAddons((prev) => ({ ...prev, [itemId]: false }))
     setAddonType((prev) => ({ ...prev, [itemId]: null }))
   }
 
-  // const calculateItemTotal = (itemId: number, baseCost: number) => {
-  //   const addonCosts = Object.entries(selectedAddons[itemId] || {}).reduce(
-  //     (total, [addon, quantity]) => {
-  //       return total + (ADDON_PRICES[addon as AddonName] * (quantity || 0))
-  //     },
-  //     0
-  //   )
-  //   return baseCost + addonCosts
-  // }
-
-  // const calculateCartTotal = () => {
-  //   return cart.reduce((total, item) => {
-  //     const itemTotal = calculateTotalWithAddons(item.id);
-  //     return total + itemTotal;
-  //   }, 0);
-  // };
+  const handleDelete = async (id: number) => {
+    const confirmDelete = confirm('Are you sure you want to delete this addon?');
+    
+    if (confirmDelete) {
+      try {
+        await deleteAddonById(id);
+        setAddons(prevAddons => prevAddons.filter(addon => addon.id !== id));
+        router.refresh();
+      } catch (error) {
+        console.error("Error deleting addon:", error);
+      }
+    }
+  }
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md mb-8">
@@ -183,26 +135,18 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
                 </div>
 
                 {/* List of selected add-ons */}
-                {item.addons && (item.addons.topping.length > 0 || item.addons.cone.length > 0) && (
+                {item.addons && item.addons.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {[...item.addons.topping.map(addon => ({...addon, category: 'topping' as const})), 
-                      ...item.addons.cone.map(addon => ({...addon, category: 'cone' as const}))
-                    ].map((addon) => (
-                      <div
-                        key={addon.addonName}
-                        className="flex items-center space-x-2 bg-gray-200 px-2 py-1 rounded"
-                      >
+                    {item.addons.map((addon) => (
+                      <div key={addon.addonId} className="flex items-center space-x-2 bg-gray-200 px-2 py-1 rounded">
                         <span>{addon.addonName}</span>
                         <span className="text-sm text-gray-600">
                           (Rs.{addon.addonPrice})
                         </span>
                         <div className="flex items-center space-x-1">
                           <button
-                            onClick={(e) => {
-                              console.log('- button clicked');
-                              e.preventDefault();
-                              e.stopPropagation();
-                              decrementAddon(item.id, addon.addonName, addon.category);
+                            onClick={() => {
+                              decrementAddon(item.id, addon.addonId);
                             }}
                             className="text-sm bg-gray-300 px-1 rounded"
                           >
@@ -210,14 +154,13 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
                           </button>
                           <span className="text-sm">{addon.addonQuantity}</span>
                           <button
-                            onClick={(e) => {
-                              console.log('+ button clicked');
-                              e.preventDefault();
-                              e.stopPropagation();
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
                               addAddonToIcecream(
                                 item.id, 
-                                addon.addonName, 
-                                addon.category,
+                                addon.addonId,
+                                addon.addonName,
                                 addon.addonPrice
                               );
                             }}
@@ -225,14 +168,14 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
                           >
                             +
                           </button>
+                          <button
+                            onClick={() => removeAddonFromIcecream(item.id, addon.addonId)}
+                            className="text-red-500"
+                            aria-label="Remove Add-on"
+                          >
+                            <XMarkIcon className="w-4 h-4" />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => removeAddonFromIcecream(item.id, addon.addonName, addon.category)}
-                          className="text-red-500"
-                          aria-label="Remove Add-on"
-                        >
-                          <XMarkIcon className="w-4 h-4" />
-                        </button>
                       </div>
                     ))}
                   </div>
@@ -282,26 +225,80 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
                           addon.name.toLowerCase().includes(searchQuery.toLowerCase())
                         )
                         .map(addon => (
+                          <div className="flex justify-between items-center bg-gray-300 px-2 py-1 rounded w-full">
+                          {/* Name and Price inside the parent button */}
                           <button
-                            key={addon.id}
                             onClick={(e) => {
                               e.preventDefault();
-                              e.stopPropagation();
-                              addAddonToIcecream(
-                                item.id, 
-                                addon.name, 
-                                addon.category.toLowerCase() as 'topping' | 'cone',
-                                addon.cost
-                              );
+                              e.stopPropagation(); // Prevent event from propagating to parent elements
+                              addAddonToIcecream(item.id, addon.id, addon.name, addon.price);
                             }}
-                            className="bg-gray-300 px-2 py-1 rounded w-full text-left flex justify-between items-center"
+                            className="w-full text-left flex flex-col"
                           >
                             <span>{addon.name}</span>
-                            <span className="text-sm text-gray-600">
-                              Rs.{addon.cost}
-                            </span>
+                            <span className="text-sm text-gray-600">Rs.{addon.price}</span>
                           </button>
-                        ))}
+                        
+                          {/* Ellipsis Menu as a separate component */}
+                          <Menu as="div" className="relative">
+                            <Menu.Button
+                              className="p-1 rounded-full hover:bg-gray-200"
+                              onClick={(e) => e.stopPropagation()} // Prevent parent button click
+                            >
+                              <EllipsisVerticalIcon className="h-5 w-5 text-gray-500" />
+                            </Menu.Button>
+                            <Transition
+                              enter="transition duration-100 ease-out"
+                              enterFrom="transform scale-95 opacity-0"
+                              enterTo="transform scale-100 opacity-100"
+                              leave="transition duration-75 ease-out"
+                              leaveFrom="transform scale-100 opacity-100"
+                              leaveTo="transform scale-95 opacity-0"
+                            >
+                              <Menu.Items className="absolute right-0 mt-2 w-40 origin-top-right bg-white divide-y divide-gray-100 rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
+                                <div className="px-1 py-1">
+                                  <Menu.Item>
+                                           {({ active }) => (
+                                        <>
+                                          <Link href={{
+                                            pathname: `/billing/${addon.id}/edit`,
+                                            query: {
+                                              name: addon.name,
+                                              category: addon.category,
+                                              price: addon.price,
+                                              action: "addon",
+                                            },
+                                          }}>
+                                            <button
+                                              className={`${
+                                                active ? 'bg-blue-500 text-white' : 'text-gray-900'
+                                              } group flex rounded-md items-center w-full px-2 py-2 text-sm`}
+                                            >
+                                              Edit
+                                            </button>
+                                          </Link>
+                                        </>
+                                    )}
+                                  </Menu.Item>
+                                  <Menu.Item>
+                                    {({ active }) => (
+                                      <button
+                                        className={`${
+                                          active ? 'bg-red-500 text-white' : 'text-gray-900'
+                                        } group flex rounded-md items-center w-full px-2 py-2 text-sm`}
+                                        onClick={() => handleDelete(addon.id)}
+                                      >
+                                        Delete
+                                      </button>
+                                    )}
+                                  </Menu.Item>
+                                </div>
+                              </Menu.Items>
+                            </Transition>
+                          </Menu>
+                        </div>
+                        
+                      ))}
                     </div>
                   </div>
                 )}

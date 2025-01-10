@@ -1,8 +1,19 @@
 import { z } from "zod";
+import { Category } from "@prisma/client";
 
 export const createIceCreamSchema = z.object({
   name: z.string().nonempty({ message: "Name is required" }),
-  category: z.enum(["IceCream", "Falooda", "MilkShakes", "Topping", "Cone"], {
+  category: z.enum(Object.values(Category) as [string, ...string[]], {
+    message: "Please Select a Category .",
+  }),
+  cost: z.coerce
+    .number()
+    .gt(0, { message: "Please enter an amount greater than Rs0." }),
+});
+
+export const createAddonSchema = z.object({
+  name: z.string().nonempty({ message: "Name is required" }),
+  category: z.enum(["Topping", "Cone"], {
     message: "Please Select a Category .",
   }),
   cost: z.coerce
@@ -22,14 +33,10 @@ export const registerUserSchema = z.object({
 });
 
 const AddonItemSchema = z.object({
+  addonId: z.number(),
   addonName: z.string(),
   addonPrice: z.number(),
   addonQuantity: z.number(),
-});
-
-const AddonsSchema = z.object({
-  cone: z.array(AddonItemSchema),
-  topping: z.array(AddonItemSchema),
 });
 
 const CartItemSchema = z.object({
@@ -37,7 +44,7 @@ const CartItemSchema = z.object({
   name: z.string(),
   cost: z.number(),
   quantity: z.number(),
-  addons: AddonsSchema.optional(),
+  addons: z.array(AddonItemSchema).optional(),
 });
 
 export const createOrderSchema = z.object({

@@ -26,8 +26,7 @@ enum Category {
   IceCream
   Falooda
   MilkShakes
-  Topping
-  Cone
+ 
 }
 
 enum ModeOfPayment {
@@ -62,20 +61,17 @@ model Order {
 }
 
 model OrderItems {
-  id          Int   @id @default(autoincrement())
-  quantity    Int   @default(1)
-  itemCost    Float // Stores the price of one unit of the ice cream
-
-  addons      Json  @default("{}")
-  // Foreign keys
+  id          Int             @id @default(autoincrement())
+  quantity    Int            @default(1)
+  itemCost    Float
   orderId     Int
   iceCreamId  Int
-
   // Relations
-  order    Order    @relation(fields: [orderId], references: [id])
-  iceCream IceCream @relation(fields: [iceCreamId], references: [id])
+  order       Order          @relation(fields: [orderId], references: [id])
+  iceCream    IceCream       @relation(fields: [iceCreamId], references: [id])
+  addons      OrderItemAddon[]
 
-  @@unique([orderId, iceCreamId]) // Ensures each ice cream is only listed once per order
+  @@unique([orderId, iceCreamId])
 }
 
 model Login {
@@ -98,12 +94,39 @@ model UserOrderCounter {
 }
 
 model KOTOrder {
-  id              Int      @id @default(autoincrement())
-  kotNumber       Int // Stores the current counter value for the KOT order
-  kotName         String   @db.VarChar(255)
-  cartItems       Json // Stores a list of lists of cart items
-  total           Float    @default(0.0)
-  lastUpdatedDate DateTime @updatedAt // Automatically updates on each modification
-  loginId         Int // Foreign key to reference the Login model
-  login           Login    @relation(fields: [loginId], references: [id]) // Defines the relation to Login
+  id              Int            @id @default(autoincrement())
+  kotNumber       Int
+  kotName         String        @db.VarChar(255)
+  cartItems       Json          
+  total           Float         @default(0.0)
+  lastUpdatedDate DateTime      @updatedAt
+  loginId         Int
+  login           Login         @relation(fields: [loginId], references: [id])
+}
+
+model Addon {
+  id              Int              @id @default(autoincrement())
+  name            String
+  price           Float
+  category        AddonCategory
+  // Relations
+  orderItemAddons OrderItemAddon[]
+}
+
+model OrderItemAddon {
+  id          Int       @id @default(autoincrement())
+  quantity    Int
+  priceAtTime Float    // Add this field to store historical price
+  orderId     Int
+  orderItem   OrderItems @relation(fields: [orderId], references: [id])
+  addonId     Int
+  addon       Addon     @relation(fields: [addonId], references: [id])
+
+  @@unique([orderId, addonId])
+}
+
+// New enum for addons
+enum AddonCategory {
+  Topping
+  Cone
 }

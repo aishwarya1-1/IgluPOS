@@ -7,7 +7,6 @@ import { appendKOTorder, BillState, createBill, createKOTBill, deleteKOTorder, e
 import { useEffect, useState } from 'react';
 import Cart from './Cart';
 import { useRouter } from 'next/navigation'; 
-import { JsonValue } from '@prisma/client/runtime/library';
 import { useToast } from "@/hooks/use-toast"
 
 export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: number; kotAction?: string ;cartItems?:string;}) {
@@ -15,20 +14,11 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   const { userId } = useUser();
   const { toast } = useToast()
   const [kotActionState, setKotActionState] = useState<string | undefined>();
-  const [kotSaveState, setKotSaveState] = useState<number>(10000);
+
   const createBilling = async (prevState: BillState, formData: FormData ) => {
     const currentKotActionState = kotActionState;
-    if (!currentKotActionState) { 
-      console.log(kotActionState)
-      if(userId){
-      const kotSave=await updateKOTCounter( userId);
-      setKotSaveState(kotSave)
-      }
-     
-    }
-   
-  
-    return createBill(cart, totalCost, userId, prevState, formData);
+
+    return createBill(cart, totalCost, userId, prevState, formData,currentKotActionState);
     
   };
   const initialState: BillState = { message: '', errors: {} };
@@ -39,7 +29,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   const [customerName, setCustomerName] = useState("");
   const [billKeyKOT, setBillKeyKOT] = useState<number | undefined>(kotid);
   const router = useRouter();
-  // const [displayMessage, setDisplayMessage] = useState(initialState.message);
+
   const [isKOTDisabled, setIsKOTDisabled] = useState(false);
   const [isSaveAndPrintDisabled, setIsSaveAndPrintDisabled] = useState(false);
 
@@ -102,18 +92,13 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
               ${item.addons ? `
                 <div class="addons" style="margin-left: 20px; font-size: 11px;">
                   <div>Addons:</div>
-                  ${item.addons.cone.map(addon => `
+                  ${item.addons.map(addon => `
                     <div class="addon-item">
                       <span>${addon.addonName} x ${addon.addonQuantity}</span>
                       <span>Rs.${(addon.addonPrice * addon.addonQuantity).toFixed(2)}</span>
                     </div>
                   `).join('')}
-                  ${item.addons.topping.map(addon => `
-                    <div class="addon-item">
-                      <span>${addon.addonName} x ${addon.addonQuantity}</span>
-                      <span>Rs.${(addon.addonPrice * addon.addonQuantity).toFixed(2)}</span>
-                    </div>
-                  `).join('')}
+             
                 </div>
               ` : ''}
             `).join('')}
@@ -179,16 +164,12 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
               ${item.addons ? `
                 <div class="addons" style="margin-left: 40px; font-size: 12px;">
                   <div>Addons:</div>
-                  ${item.addons.cone.map(addon => `
+                  ${item.addons.map(addon => `
                     <div style="margin-left: 10px;">
                       ${addon.addonName} x ${addon.addonQuantity}
                     </div>
                   `).join('')}
-                  ${item.addons.topping.map(addon => `
-                    <div style="margin-left: 10px;">
-                      ${addon.addonName} x ${addon.addonQuantity}
-                    </div>
-                  `).join('')}
+            
                 </div>
               ` : ''}
             `).join('')}
@@ -293,9 +274,13 @@ useEffect(() => {
       return}
     hasPrinted = true;
 
-    const userOrderIdMatch = state.message.match(/Bill Added with userOrderId: (\d+)/);
-    const userOrderId = userOrderIdMatch ? userOrderIdMatch[1] : null;
-    console.log('userOrderId', userOrderId);
+    const UserKOTCounter = state.message.split(',');
+
+    const userOrderId = UserKOTCounter[0] ? UserKOTCounter[0].trim() : null;  // Get the first part and trim whitespace
+const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefined; // Get the second part and trim whitespace
+
+
+
     setKey((prevKey) => prevKey + 1);
 
     if (kotActionState === 'checkout') {
@@ -313,7 +298,7 @@ useEffect(() => {
         }, 500);
       });
 
-      setTimeout(() => printKitchenOrder(kotSaveState), 1000);
+      setTimeout(() => printKitchenOrder(kotSave), 1000);
    
     }
 
@@ -378,7 +363,7 @@ useEffect(() => {
       } else {
         const response = await createKOTBill([cart], totalCost, userId, customerName);
       if (response?.message === "KOT Bill Added") {
-        console.log(response.kotNum)
+    
         printKitchenOrder(response.kotNum);
         clearCart();
         toast({

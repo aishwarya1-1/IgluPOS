@@ -4,18 +4,19 @@ import {
   registerUserSchema,
   createOrderSchema,
   dateRangeSchema,
+  createAddonSchema,
+  CreateIcecream,
 } from "../validation_schemas";
 import { startOfDay, endOfDay, eachDayOfInterval, format } from "date-fns";
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Category, AddonCategory, PrismaClient } from "@prisma/client";
 import { CartItem, useCart } from "@/context/CartContext";
-import { IceCream } from "@/context/CartContext";
 import bcrypt from "bcryptjs";
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
 const prisma = new PrismaClient();
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { JsonValue } from "@prisma/client/runtime/library";
+
 export type State = {
   errors?: {
     name?: string[];
@@ -56,18 +57,16 @@ export interface DetailedOrderItem {
   cost: number;
   quantity: number;
   category: string;
-  addons?: {
-    cone: Array<{
-      addonName: string;
-      addonPrice: number;
-      addonQuantity: number;
-    }>;
-    topping: Array<{
-      addonName: string;
-      addonPrice: number;
-      addonQuantity: number;
-    }>;
-  };
+  addons: {
+    id: number;
+    priceAtTime: number;
+    quantity: number;
+    addon: {
+      name: string;
+
+      category: string;
+    };
+  }[];
 }
 
 export async function createIcecream(prevState: State, formData: FormData) {
@@ -83,13 +82,13 @@ export async function createIcecream(prevState: State, formData: FormData) {
     };
   }
   const { name, category, cost } = validatedFields.data;
-  console.log(name, category, cost);
+
   try {
     // Create a new ice cream entry in the database
     const newIceCream = await prisma.iceCream.create({
       data: {
         name,
-        category,
+        category: category as Category,
         cost,
       },
     });
@@ -135,7 +134,7 @@ export async function UpdateIcecream(
       },
       data: {
         name: name, // Update the name
-        category: category, // Update the category
+        category: category as Category, // Update the category
         cost: cost, // Update the cost
       },
     });
@@ -150,16 +149,96 @@ export async function UpdateIcecream(
   }
   redirect("/billing");
 }
+//create addon
+export async function createAddon(prevState: State, formData: FormData) {
+  const validatedFields = createAddonSchema.safeParse({
+    name: formData.get("name"),
+    category: formData.get("category"),
+    cost: formData.get("cost"),
+  });
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "",
+    };
+  }
+  const { name, category, cost } = validatedFields.data;
+
+  try {
+    // Create a new ice cream entry in the database
+    const newAddon = await prisma.addon.create({
+      data: {
+        name,
+        category: category as AddonCategory,
+        price: cost,
+      },
+    });
+    revalidatePath("/billing");
+    return {
+      message: "Added successfully",
+      errors: {},
+    };
+  } catch (error) {
+    return {
+      message: "Failed to Add the Addon.",
+      errors: {},
+    };
+  } finally {
+    await prisma.$disconnect(); // Disconnect Prisma client
+  }
+}
+//edit addon
+export async function UpdateAddon(
+  id: number,
+  prevState: State,
+  formData: FormData
+) {
+  const validatedFields = createAddonSchema.safeParse({
+    name: formData.get("name"),
+    category: formData.get("category"),
+    cost: formData.get("cost"),
+  });
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "",
+    };
+  }
+  const { name, category, cost } = validatedFields.data;
+
+  try {
+    const updatedAddon = await prisma.addon.update({
+      where: {
+        id: id, // Specify the id of the ice cream to update
+      },
+      data: {
+        name: name, // Update the name
+        category: category as AddonCategory, // Update the category
+        price: cost, // Update the cost
+      },
+    });
+    revalidatePath("/billing");
+  } catch (error) {
+    return {
+      message: "Failed to Update Addon.",
+      errors: {},
+    };
+  } finally {
+    await prisma.$disconnect(); // Disconnect Prisma client
+  }
+  redirect("/billing");
+}
 
 //getIcecream
 export async function getIceCreamData() {
   try {
     await delay(500);
-    const iceCreams: IceCream[] = await prisma.iceCream.findMany({
+    const iceCreams: CreateIcecream[] = await prisma.iceCream.findMany({
       select: {
         id: true,
         name: true,
         cost: true,
+        category: true,
       },
     });
 
@@ -177,23 +256,18 @@ export async function getIceCreamData() {
 }
 export async function getAdonsData() {
   try {
-    const iceCreams = await prisma.iceCream.findMany({
-      where: {
-        category: {
-          in: ["Topping", "Cone"], // Filter for items with category Topping or Cone
-        },
-      },
+    const addons = await prisma.addon.findMany({
       select: {
         id: true,
         name: true,
-        cost: true,
+        price: true,
         category: true,
       },
     });
 
     return {
       success: true,
-      data: iceCreams,
+      data: addons,
     };
   } catch (error) {
     console.error("Database Error:", error);
@@ -255,7 +329,25 @@ export async function deleteIceCreamById(id: number) {
   }
   redirect("/billing");
 }
+//delete addon by id
+export async function deleteAddonById(id: number) {
+  try {
+    // This is the command that tells Prisma to delete the ice cream based on its ID.
+    const deletedAddon = await prisma.addon.delete({
+      where: {
+        id: id, // Specify the id of the ice cream you want to delete
+      },
+    });
 
+    revalidatePath("/billing");
+  } catch (error) {
+    console.error(`Failed to delete addon with ID ${id}:`, error);
+    return {
+      success: false,
+    };
+  }
+  redirect("/billing");
+}
 //register
 
 export async function registerUser(prevState: UserState, formData: FormData) {
@@ -272,8 +364,6 @@ export async function registerUser(prevState: UserState, formData: FormData) {
   }
   const { email, username, password } = validatedFields.data;
 
-  console.log(email, username, password);
-  console.log("database");
   const hashedPassword = await bcrypt.hash(password, 10);
   try {
     // Create a new ice cream entry in the database
@@ -284,8 +374,8 @@ export async function registerUser(prevState: UserState, formData: FormData) {
         password: hashedPassword,
         userOrderCounter: {
           create: {
-            counter: 1, // Initial counter value
-            KOTCounter: 1, // Initial KOTCounter value
+            counter: 0, // Initial counter value
+            KOTCounter: 0, // Initial KOTCounter value
             lastUpdated: new Date(), // Set to the current date
           },
         },
@@ -345,10 +435,11 @@ export async function createBill(
   totalCost: number,
   userId: string | undefined,
   prevState: BillState,
-  formData: FormData
+  formData: FormData,
+  kotActionState: string | undefined
 ) {
-  console.log("we are here");
   let userOrderId: number | null = null;
+  let kotSave: number | null = null;
   const validatedFields = createOrderSchema.safeParse({
     cart: cart,
     modeOfPayment: formData.get("modeOfPayment"),
@@ -356,13 +447,15 @@ export async function createBill(
     totalCost: totalCost,
     userId: userId,
   });
+
   if (!validatedFields.success) {
-    console.log(validatedFields.error.flatten().fieldErrors);
+    console.log("zod error", validatedFields.error.flatten().fieldErrors);
     return {
       errors: validatedFields.error.flatten().fieldErrors,
       message: "",
     };
   }
+
   const {
     cart: validatedCart,
     modeOfPayment,
@@ -373,6 +466,11 @@ export async function createBill(
 
   try {
     await prisma.$transaction(async (prisma) => {
+      if (!kotActionState) {
+        if (userId) {
+          kotSave = await updateKOTCounter(userId); // Execute updateKOTCounter
+        }
+      }
       const userOrderCounter = await prisma.userOrderCounter.update({
         where: { loginId: user },
         data: {
@@ -382,6 +480,7 @@ export async function createBill(
           counter: true, // Retrieve the updated counter value
         },
       });
+
       // Create the new order
       const newOrder = await prisma.order.create({
         data: {
@@ -393,27 +492,47 @@ export async function createBill(
         },
       });
       userOrderId = newOrder.userOrderId;
-      await prisma.orderItems.createMany({
-        data: validatedCart.map((item) => ({
-          orderId: newOrder.id,
-          iceCreamId: item.id,
-          quantity: item.quantity,
-          itemCost: item.cost,
-          addons: item.addons,
-        })),
-      });
+
+      // Create order items and their addons
+      for (const item of validatedCart) {
+        const orderItem = await prisma.orderItems.create({
+          data: {
+            orderId: newOrder.id,
+            iceCreamId: item.id,
+            quantity: item.quantity,
+            itemCost: item.cost,
+          },
+        });
+
+        // Check if addons exist before creating OrderItemAddon entries
+        if (Array.isArray(item.addons)) {
+          for (const addon of item.addons) {
+            await prisma.orderItemAddon.create({
+              data: {
+                quantity: addon.addonQuantity,
+                priceAtTime: addon.addonPrice,
+                orderId: orderItem.id,
+
+                addonId: addon.addonId,
+              },
+            });
+          }
+        }
+      }
     });
 
     revalidatePath("/billing/dashboard");
 
     return {
-      message: `Bill Added with userOrderId: ${userOrderId}`,
+      message: `${userOrderId},${kotSave}`,
+
       errors: {},
     };
   } catch (error) {
     console.log(error);
     return {
       message: "Failed to add the bill.",
+
       errors: {},
     };
   } finally {
@@ -599,7 +718,19 @@ export async function getReport(
           select: {
             quantity: true,
             itemCost: true,
-            addons: true,
+            addons: {
+              select: {
+                addonId: true,
+                priceAtTime: true,
+                quantity: true,
+                addon: {
+                  select: {
+                    name: true,
+                    category: true,
+                  },
+                },
+              },
+            },
             iceCream: {
               select: {
                 name: true,
@@ -622,20 +753,15 @@ export async function getReport(
         cost: item.itemCost,
         quantity: item.quantity,
         category: item.iceCream.category,
-        addons: item.addons as
-          | {
-              cone: Array<{
-                addonName: string;
-                addonPrice: number;
-                addonQuantity: number;
-              }>;
-              topping: Array<{
-                addonName: string;
-                addonPrice: number;
-                addonQuantity: number;
-              }>;
-            }
-          | undefined,
+        addons: item.addons.map((addon) => ({
+          id: addon.addonId,
+          priceAtTime: addon.priceAtTime,
+          quantity: addon.quantity,
+          addon: {
+            name: addon.addon.name,
+            category: addon.addon.category,
+          },
+        })),
       }))
     );
     // console.log(detailedOrderItems);
@@ -699,7 +825,7 @@ export async function updateKOTCounter(userId: string) {
     const updatedCounter = await prisma.userOrderCounter.update({
       where: { loginId: parseInt(userId) },
       data: {
-        KOTCounter: 1,
+        KOTCounter: 0,
         lastUpdated: new Date(),
       },
       select: { KOTCounter: true },
@@ -715,6 +841,7 @@ export async function updateKOTCounter(userId: string) {
       },
       select: { KOTCounter: true },
     });
+    console.log("updatedCounter", updatedCounter);
     return updatedCounter.KOTCounter;
   }
 }

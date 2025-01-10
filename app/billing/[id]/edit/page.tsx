@@ -1,30 +1,46 @@
+'use client'
 
-import EditIceCreamForm from "@/components/editIceCream";
-import { getIceCreamById } from "@/app/lib/actions";
-import { notFound } from 'next/navigation';
+import EditIceCreamForm from "@/components/editIceCream"
+import EditAddonForm from "@/components/editAddon"
+import { useSearchParams } from 'next/navigation'
+import { notFound } from 'next/navigation'
 
-
-const  Page = async ({params} :{params :{id:string}}) => {
-
-  const id = parseInt(params.id, 10);
+const Page = ({ params }: { params: { id: string } }) => {
+  const searchParams = useSearchParams()
+  const id = parseInt(params.id, 10)
   
-  const  initialData=await getIceCreamById(id)
-  const iceCreamData = initialData.data;
+  // Get all query parameters
+  const name = searchParams.get('name')
+  const category = searchParams.get('category')
+  const price = searchParams.get('price')
+  const action = searchParams.get('action')
 
-  if(!initialData.success){
+  // If essential data is missing, show 404
+  if (!name || !category || !price) {
     notFound()
   }
+
+  // Create initial data object from query params
+  const initialData = {
+    id,
+    name,
+    category,
+    cost: parseFloat(price), // Convert price string to number
+  }
+
   return (
-    <div className="flex items-center justify-center min-h-screen bg-white min-h-[70vh] ">
-    <div className="max-w-lg w-full p-4"> 
-    <EditIceCreamForm 
-  initialData={iceCreamData} 
-/>
+    <div className="flex items-center justify-center min-h-screen bg-white min-h-[70vh]">
+      <div className="max-w-lg w-full p-4">
+        {action === 'icecream' ? (
+          <EditIceCreamForm initialData={initialData} />
+        ) : action === 'addon' ? (
+          <EditAddonForm initialData={initialData} />
+        ) : (
+          <div>Invalid action type</div>
+        )}
+      </div>
     </div>
-  </div>
-  );
-};
+  )
+}
 
-export default Page;
-
-
+export default Page

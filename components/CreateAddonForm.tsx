@@ -1,18 +1,18 @@
 'use client';
 import React, {  useEffect, useState } from 'react';
 import {  useFormState } from 'react-dom'
-import { createIcecream,State } from '@/app/lib/actions';
-import { Category } from '@prisma/client';
+import { createAddon,State } from '@/app/lib/actions';
+import { AddonCategory } from '@prisma/client';
 // import { Button } from '@headlessui/react';
 
-const CreateIceCreamForm = () => {
+const CreateAddonForm = () => {
   const initialState: State = { message: "", errors: {} };
-  const [state, formAction] = useFormState(createIcecream, initialState);
+  const [state, formAction] = useFormState(createAddon, initialState);
 
   const [key, setKey] = useState(0);
 
   useEffect(() => {
-    console.log("State changed:", state);
+
     if (state.message === "Added successfully") {
       console.log("Resetting form...");
       setKey(prevKey => prevKey + 1);
@@ -33,11 +33,11 @@ const CreateIceCreamForm = () => {
         {state.message}
       </div>
     )}
-      <h2 className="text-2xl font-semibold mb-4">Add Ice Cream Item</h2>
+      <h2 className="text-2xl font-semibold mb-4">Add Addon Item</h2>
       <form key ={key} action={formAction} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700" htmlFor="name">
-            Ice Cream Name
+            Addon Name
           </label>
           <input
             type="text"
@@ -68,12 +68,12 @@ const CreateIceCreamForm = () => {
             className="mt-1 block w-full p-2 border border-gray-300 rounded"
             aria-describedby="category-error"
           >
-            {Object.values(Category).map((category) => (
+             {Object.values(AddonCategory).map((category) => (
               <option key={category} value={category}>
                 {category}
               </option>
             ))}
-     
+         
            
           </select>
           <div id="category-error" aria-live="polite" aria-atomic="true">
@@ -117,4 +117,4 @@ const CreateIceCreamForm = () => {
   );
 };
 
-export default CreateIceCreamForm;
+export default CreateAddonForm;

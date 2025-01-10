@@ -42,8 +42,8 @@ export function Report({ data }: { data: DateRange | undefined }) {
                                 topping: Array<{ addonName: string; addonPrice: number; addonQuantity: number }>;
                             };
                             const formattedAddons = [
-                                ...addons.cone.map(a => `${a.addonName}(${a.addonQuantity})`),
-                                ...addons.topping.map(a => `${a.addonName}(${a.addonQuantity})`)
+                                ...(addons.cone || []).map(a => `${a.addonName}(${a.addonQuantity})`),
+                                ...(addons.topping || []).map(a => `${a.addonName}(${a.addonQuantity})`)
                             ].join('; ');
                             return `"${formattedAddons}"`;
                         }
@@ -80,10 +80,7 @@ export function Report({ data }: { data: DateRange | undefined }) {
                 const detailedOrders = await getReport(startDate, endDate, userId);
                 const transformedData = detailedOrders.map((order) => {
                     const gst = order.cost * 0.1; // 10% tax
-                    const addonsTotal = (order.addons?.cone?.reduce((total, addon) => 
-                        total + addon.addonPrice * addon.addonQuantity, 0) ?? 0) + 
-                        (order.addons?.topping?.reduce((total, addon) => 
-                        total + addon.addonPrice * addon.addonQuantity, 0) ?? 0);
+                    const addonsTotal = order.addons.reduce((total, addon) => total + addon.priceAtTime * addon.quantity, 0);
                     const finalTotal = (order.cost * order.quantity) + gst + (addonsTotal ?? 0);
                     
                     return {
@@ -97,8 +94,19 @@ export function Report({ data }: { data: DateRange | undefined }) {
                         Quantity: order.quantity,
                         GST: gst,
                         Category: order.category,
-                        "Addons": order.addons,
-                        "AddonsTotal": addonsTotal,
+                        Addons: {
+                            cone: order.addons.filter(addon => addon.addon.category === 'cone').map(addon => ({
+                                addonName: addon.addon.name,
+                                addonPrice: addon.priceAtTime,
+                                addonQuantity: addon.quantity,
+                            })),
+                            topping: order.addons.filter(addon => addon.addon.category === 'topping').map(addon => ({
+                                addonName: addon.addon.name,
+                                addonPrice: addon.priceAtTime,
+                                addonQuantity: addon.quantity,
+                            })),
+                        },
+                        AddonsTotal: addonsTotal,
                         "Final Total": finalTotal,
                     };
                 });

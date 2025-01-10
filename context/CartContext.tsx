@@ -8,20 +8,21 @@ export interface IceCream {
   cost: number
 }
 
-interface AddonItem {
+export interface AddonItem {
+  addonId: number;
   addonName: string;
   addonPrice: number;
   addonQuantity: number;
 }
 
-interface Addons {
-  cone: AddonItem[];
-  topping: AddonItem[];
-}
+// interface Addons {
+//   cone: AddonItem[];
+//   topping: AddonItem[];
+// }
 
 export interface CartItem extends IceCream {
   quantity: number;
-  addons?: Addons;
+  addons?: AddonItem[];
 }
 
 interface CartContextType {
@@ -33,10 +34,10 @@ interface CartContextType {
   removeItem: (id: number) => void
   clearCart: () => void
   populateCart: (items: CartItem[]) => void
-  addAddonToIcecream: (itemId: number, addon: string, type: 'topping' | 'cone', price: number) => void;
-  decrementAddon: (itemId: number, addon: string, type: 'topping' | 'cone') => void;
+  addAddonToIcecream: (itemId: number, addonId: number, addon: string, price: number) => void;
+  decrementAddon: (itemId: number,addonId: number) => void;
   calculateTotalWithAddons: (iceCreamId: number) => number;
-  removeAddonFromIcecream: (itemId: number, addonName: string, type: 'topping' | 'cone') => void;
+  removeAddonFromIcecream: (itemId: number, addonId: number) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
@@ -44,27 +45,31 @@ const CartContext = createContext<CartContextType | undefined>(undefined)
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([])
 
-  const calculateTotalWithAddons = (iceCreamId: number) => {
+  const calculateTotalWithAddons = (iceCreamId: number): number => {
+    // Find the ice cream item in the cart
     const item = cart.find(item => item.id === iceCreamId);
-    if (!item) return 0;
-
+    if (!item) return 0; // If not found, return 0
+  
+    // Ensure `addons` is an array or default to an empty array
+    const addons = Array.isArray(item.addons) ? item.addons : [];
+  
+    // Calculate the base cost (quantity * cost)
     const baseCost = item.cost * item.quantity;
-    if (!item.addons) return baseCost;
-
-    const addonsCost = [
-      ...item.addons.topping,
-      ...item.addons.cone
-    ].reduce((total, addon) => 
-      total + (addon.addonPrice * addon.addonQuantity), 
-      0
-    );
-
+  
+    // Calculate the total cost of addons
+    const addonsCost = addons.reduce((total, addon) => {
+      return total + addon.addonPrice * addon.addonQuantity;
+    }, 0);
+  
+    // Return the combined cost
     return baseCost + addonsCost;
   };
-
-  const totalCost = cart.reduce((total, item) => 
-    total + calculateTotalWithAddons(item.id), 0
-  );
+  
+  // Calculate the total cost for the entire cart
+  const totalCost = cart.reduce((total, item) => {
+    return total + calculateTotalWithAddons(item.id);
+  }, 0);
+  
 
   const addToCart = (item: IceCream) => {
     setCart((prevCart) => {
@@ -109,50 +114,55 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCart(items)
   }
 
-  const addAddonToIcecream = (itemId: number, addon: string, type: 'topping' | 'cone', price: number) => {
-    console.log('addAddonToIcecream called with:', { itemId, addon, type, price });
-    setCart(prevCart => {
-      const newCart = prevCart.map(item => {
+  const addAddonToIcecream = (
+    itemId: number,
+    addonId: number,
+    addonName: string,
+    price: number
+  ) => {
+    console.log("addAddonToIcecream called with:", { itemId, addonId, addonName, price });
+  
+    setCart((prevCart) =>
+      prevCart.map((item) => {
         if (item.id === itemId) {
-          const currentAddons = item.addons || { topping: [], cone: [] };
-          const addonList = [...currentAddons[type]];
-          const existingAddonIndex = addonList.findIndex(a => a.addonName === addon);
-
-          if (existingAddonIndex >= 0) {
-            addonList[existingAddonIndex] = {
-              ...addonList[existingAddonIndex],
-              addonQuantity: addonList[existingAddonIndex].addonQuantity + 1
-            };
+          const currentAddons = item.addons || [];
+          const addonIndex = currentAddons.findIndex((a) => a.addonId === addonId);
+  
+          let updatedAddons;
+          if (addonIndex >= 0) {
+            updatedAddons = currentAddons.map((addon, index) =>
+              index === addonIndex
+                ? { ...addon, addonQuantity: addon.addonQuantity + 1 }
+                : addon
+            );
+            console.log("Addon quantity incremented:", updatedAddons[addonIndex]);
           } else {
-            addonList.push({
-              addonName: addon,
+            const newAddon = {
+              addonId: addonId,
+              addonName: addonName,
+              addonQuantity: 1,
               addonPrice: price,
-              addonQuantity: 1
-            });
+            };
+            updatedAddons = [...currentAddons, newAddon];
+            console.log("New addon added:", newAddon);
           }
-
+  
           return {
             ...item,
-            addons: {
-              ...currentAddons,
-              [type]: addonList
-            }
+            addons: updatedAddons,
           };
         }
         return item;
-      });
-
-      return newCart;
-    });
+      })
+    );
   };
-
-  const decrementAddon = (itemId: number, addon: string, type: 'topping' | 'cone') => {
-    console.log('decrementAddon called with:', { itemId, addon, type });
+  
+  const decrementAddon = (itemId: number, addonId: number) => {
     setCart(prevCart => {
       return prevCart.map(item => {
         if (item.id === itemId && item.addons) {
-          const addonList = [...item.addons[type]];
-          const existingAddonIndex = addonList.findIndex(a => a.addonName === addon);
+          const addonList = [...item.addons];
+          const existingAddonIndex = addonList.findIndex(a => a.addonId === addonId);
           
           if (existingAddonIndex >= 0) {
             if (addonList[existingAddonIndex].addonQuantity > 1) {
@@ -163,20 +173,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
             } else {
               return {
                 ...item,
-                addons: {
-                  ...item.addons,
-                  [type]: addonList.filter(a => a.addonName !== addon)
-                }
+                addons: addonList.filter(a => a.addonId !== addonId)
               };
             }
           }
 
           return {
             ...item,
-            addons: {
-              ...item.addons,
-              [type]: addonList
-            }
+            addons: addonList
           };
         }
         return item;
@@ -184,25 +188,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const removeAddonFromIcecream = (itemId: number, addonName: string, type: 'topping' | 'cone') => {
+  const removeAddonFromIcecream = (itemId: number, addonId: number) => {
     setCart(prevCart => {
       return prevCart.map(item => {
         if (item.id === itemId && item.addons) {
-          const addonList = [...item.addons[type]];
-          const addonIndex = addonList.findIndex(a => a.addonName === addonName);
-          
-          if (addonIndex >= 0) {
-            // Remove the addon from the array
-            addonList.splice(addonIndex, 1);
-            
-            return {
-              ...item,
-              addons: {
-                ...item.addons,
-                [type]: addonList
-              }
-            };
-          }
+          const updatedAddons = item.addons.filter(a => a.addonId !== addonId);
+
+          return {
+            ...item,
+            addons: updatedAddons
+          };
         }
         return item;
       });

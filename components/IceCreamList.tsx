@@ -6,16 +6,17 @@ import { Button, Menu, Transition } from '@headlessui/react'
 import { EllipsisVerticalIcon } from '@heroicons/react/24/solid'
 import Link from 'next/link'
 import { getIceCreamData, deleteIceCreamById } from '@/app/lib/actions'
-import { IceCream } from '../context/CartContext'
 import { useRouter } from 'next/navigation'
-
+import { Category } from '@prisma/client'
+import { CreateIcecream } from '@/app/validation_schemas'
 
 export default function IceCreamList() {
   const router = useRouter();
-  const [iceCreamFlavors, setIceCreamFlavors] = useState<IceCream[]>([]);
+  const [iceCreamFlavors, setIceCreamFlavors] = useState<CreateIcecream[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const { addToCart } = useCart()
 
   useEffect(() => {
@@ -47,36 +48,53 @@ export default function IceCreamList() {
     return <div>Error: {error}</div>;
   }
 
-
-  const filteredFlavors = iceCreamFlavors.filter((flavor) =>
-    flavor.name.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredFlavors = iceCreamFlavors.filter((flavor) => {
+    const matchesSearch = flavor.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'All' || flavor.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   const handleDelete = async (id: number) => {
     const confirmDelete = confirm('Are you sure you want to delete this ice cream?');
     
     if (confirmDelete) {
-
-    try {
-      await deleteIceCreamById(id);
-      setIceCreamFlavors(prevFlavors => prevFlavors.filter(flavor => flavor.id !== id));
-      router.refresh();
-    } catch (error) {
-      console.error("Error deleting ice cream:", error);
+      try {
+        await deleteIceCreamById(id);
+        setIceCreamFlavors(prevFlavors => prevFlavors.filter(flavor => flavor.id !== id));
+        router.refresh();
+      } catch (error) {
+        console.error("Error deleting ice cream:", error);
+      }
     }
   }
-  }
+
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
       <h2 className="text-2xl font-semibold mb-4">Ice Cream Flavors</h2>
       
-      <input
-        type="text"
-        placeholder="Search flavors..."
-        className="w-full p-2 mb-4 border rounded"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-      />
+      <div className="flex gap-4 mb-4">
+        <select
+          className="p-2 border rounded w-48"
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+        >
+          <option value="All">All Categories</option>
+          {Object.values(Category).map((category) => (
+            <option key={category} value={category}>
+              {category}
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="text"
+          placeholder="Search flavors..."
+          className="w-full p-2 border rounded"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
       <div className="h-[500px] overflow-y-auto">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {filteredFlavors.map((flavor) => (
@@ -97,7 +115,15 @@ export default function IceCreamList() {
                     <div className="px-1 py-1">
                       <Menu.Item>
                         {({ active }) => (
-                          <Link href={`/billing/${flavor.id}/edit`}>
+                          <Link href={{
+                            pathname: `/billing/${flavor.id}/edit`,
+                            query: {
+                              name: flavor.name,
+                              category: flavor.category,
+                              price: flavor.cost,
+                              action: "icecream",
+                            },
+                          }}>
                             <button
                               className={`${
                                 active ? 'bg-blue-500 text-white' : 'text-gray-900'
@@ -110,14 +136,13 @@ export default function IceCreamList() {
                       </Menu.Item>
                       <Menu.Item>
                         {({ active }) => (
-                            <button
+                          <button
                             className={`${
                               active ? 'bg-red-500 text-white' : 'text-gray-900'
                             } group flex rounded-md items-center w-full px-2 py-2 text-sm`}
                             onClick={() => handleDelete(flavor.id)}
-                           
                           >
-                           Delete
+                            Delete
                           </button>
                         )}
                       </Menu.Item>
@@ -125,7 +150,10 @@ export default function IceCreamList() {
                   </Menu.Items>
                 </Transition>
               </Menu>
-              <h3 className="text-lg font-semibold mb-2">{flavor.name}</h3>
+              <div className="mb-2">
+                <h3 className="text-lg font-semibold">{flavor.name}</h3>
+                <p className="text-xs italic text-gray-500">({flavor.category})</p>
+              </div>
               <p className="text-gray-600 mb-4">{flavor.cost.toFixed(2)}</p>
               <button
                 onClick={() => addToCart(flavor)}

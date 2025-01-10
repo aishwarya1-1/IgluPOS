@@ -1,25 +1,25 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import { CreateIcecream } from '@/app/validation_schemas';
-import { UpdateIcecream,State } from '@/app/lib/actions';
-import { useFormState } from 'react-dom';
-import { Category } from '@prisma/client';
 
-const EditIceCreamForm =({ initialData }: { initialData: CreateIcecream | null}) => {
+import { CreateAddon, CreateIcecream } from '@/app/validation_schemas';
+import { State, UpdateAddon } from '@/app/lib/actions';
+import { useFormState } from 'react-dom';
+import { AddonCategory } from '@prisma/client';
+
+const EditAddonForm =({ initialData }: { initialData: CreateAddon | null}) => {
     const initialState: State = { message: "", errors: {} };
     const id = initialData?.id ?? 0;
-    const updateInvoiceWithId = UpdateIcecream.bind(null, id);
-    console.log(id)
+    const updateInvoiceWithId = UpdateAddon.bind(null, id);
+ 
     const [state, formAction] = useFormState(updateInvoiceWithId, initialState);
 
 
   return (
     <div className="max-w-md mx-auto p-4 bg-white rounded-lg shadow-md">
-      <h2 className="text-2xl font-semibold mb-4">Edit Ice Cream Item</h2>
+      <h2 className="text-2xl font-semibold mb-4">Edit Add-on Item</h2>
       <form action={formAction} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700" htmlFor="name">
-            Ice Cream Name
+            Add-on Name
           </label>
           <input
              type="text"
@@ -50,7 +50,7 @@ const EditIceCreamForm =({ initialData }: { initialData: CreateIcecream | null})
           className="mt-1 block w-full p-2 border border-gray-300 rounded"
           aria-describedby="category-error"
           >
-     {Object.values(Category).map((category) => (
+     {Object.values(AddonCategory).map((category) => (
               <option key={category} value={category}>
                 {category}
               </option>
@@ -96,4 +96,4 @@ const EditIceCreamForm =({ initialData }: { initialData: CreateIcecream | null})
   );
 };
 
-export default EditIceCreamForm;
+export default EditAddonForm;
