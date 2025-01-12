@@ -1,21 +1,37 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+
 import { CreateIcecream } from '@/app/validation_schemas';
 import { UpdateIcecream,State } from '@/app/lib/actions';
 import { useFormState } from 'react-dom';
 import { Category } from '@prisma/client';
+import { useUser } from '@/context/UserContext';
 
 const EditIceCreamForm =({ initialData }: { initialData: CreateIcecream | null}) => {
+  const { userId } = useUser();
     const initialState: State = { message: "", errors: {} };
     const id = initialData?.id ?? 0;
-    const updateInvoiceWithId = UpdateIcecream.bind(null, id);
-    console.log(id)
+    if (!userId) {
+      throw new Error("User ID is required.");
+    }
+    const updateInvoiceWithId = (prevState: State, formData: FormData) => 
+      UpdateIcecream(id, userId, prevState, formData);
+  
     const [state, formAction] = useFormState(updateInvoiceWithId, initialState);
-
 
   return (
     <div className="max-w-md mx-auto p-4 bg-white rounded-lg shadow-md">
       <h2 className="text-2xl font-semibold mb-4">Edit Ice Cream Item</h2>
+      {state.message && (
+      <div
+        className={`mb-4 p-2 rounded ${
+          state.message === "Added successfully"
+            ? "bg-green-100 text-green-700"
+            : "bg-red-100 text-red-700"
+        }`}
+      >
+        {state.message}
+      </div>
+    )}
       <form action={formAction} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700" htmlFor="name">

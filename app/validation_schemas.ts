@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Category } from "@prisma/client";
+import { Category, AddonCategory } from "@prisma/client";
 
 export const createIceCreamSchema = z.object({
   name: z.string().nonempty({ message: "Name is required" }),
@@ -13,7 +13,7 @@ export const createIceCreamSchema = z.object({
 
 export const createAddonSchema = z.object({
   name: z.string().nonempty({ message: "Name is required" }),
-  category: z.enum(["Topping", "Cone"], {
+  category: z.enum(Object.values(AddonCategory) as [string, ...string[]], {
     message: "Please Select a Category .",
   }),
   cost: z.coerce
@@ -79,3 +79,12 @@ const createIceCreamSchemaWithId = createIceCreamSchema.extend({
 
 // Now infer the type
 export type CreateIcecream = z.infer<typeof createIceCreamSchemaWithId>;
+
+const createAddonSchemaWithId = createAddonSchema.extend({
+  id: z.number(), // Add the id field of type number
+});
+
+// Now infer the type
+export type CreateAddon = z.infer<typeof createAddonSchemaWithId>;
+
+export type CartItemSchemaType = z.infer<typeof CartItemSchema>;

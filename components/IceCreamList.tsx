@@ -5,13 +5,17 @@ import { useCart } from '../context/CartContext'
 import { Button, Menu, Transition } from '@headlessui/react'
 import { EllipsisVerticalIcon } from '@heroicons/react/24/solid'
 import Link from 'next/link'
-import { getIceCreamData, deleteIceCreamById } from '@/app/lib/actions'
+import { getIceCreamData, deleteIceCreamById, searchKOT } from '@/app/lib/actions'
 import { useRouter } from 'next/navigation'
 import { Category } from '@prisma/client'
 import { CreateIcecream } from '@/app/validation_schemas'
+import { useToast } from "@/hooks/use-toast"
+import { useUser } from '@/context/UserContext';
 
 export default function IceCreamList() {
   const router = useRouter();
+  const { userId } = useUser();
+  const { toast } = useToast();
   const [iceCreamFlavors, setIceCreamFlavors] = useState<CreateIcecream[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +63,18 @@ export default function IceCreamList() {
     
     if (confirmDelete) {
       try {
+        if (!userId) {
+          throw new Error("User ID is required.");
+        }
+        const iceCreamInKOT = await searchKOT(id, userId, "icecream");
+        if (iceCreamInKOT) {
+          toast({
+            title: "Error",
+            description: "Item in KOT. Please clear the KOT before deleting.",
+            variant: "destructive",
+          });
+          return;
+        }
         await deleteIceCreamById(id);
         setIceCreamFlavors(prevFlavors => prevFlavors.filter(flavor => flavor.id !== id));
         router.refresh();

@@ -6,6 +6,7 @@ import {
   dateRangeSchema,
   createAddonSchema,
   CreateIcecream,
+  CartItemSchemaType,
 } from "../validation_schemas";
 import { startOfDay, endOfDay, eachDayOfInterval, format } from "date-fns";
 import { Category, AddonCategory, PrismaClient } from "@prisma/client";
@@ -107,13 +108,66 @@ export async function createIcecream(prevState: State, formData: FormData) {
   }
 }
 
+//serach kot
+export async function searchKOT(id: number, userId: string, action: string) {
+  const kotOrders = await getKOTData(userId);
+  if (kotOrders.data.length === 0) return false;
+
+  const iceCreamIdToCheck = id;
+
+  // Iterate through orders
+  for (const order of kotOrders.data) {
+    const cartItemsString = order.cartItems; // Get the cartItems value
+
+    // Check if cartItemsString is a string and not null
+    if (typeof cartItemsString !== "string") {
+      console.error("cartItems is not a valid JSON string:", cartItemsString);
+      continue; // Skip this order and move to the next one
+    }
+
+    const cartItems: CartItemSchemaType[][] = JSON.parse(cartItemsString); // Parse the cartItems
+
+    // Iterate through each sub-array in cartItems
+    for (const subArray of cartItems) {
+      // Check if the action is for ice cream
+      if (action === "icecream") {
+        // Check if any item in the sub-array has a matching ID for ice cream
+        if (subArray.some((item) => item.id === iceCreamIdToCheck)) {
+          return true; // Return true immediately when a match is found
+        }
+      }
+      // Check if the action is for an addon
+      else if (action === "addon") {
+        // Check if any item in the sub-array has a matching addon ID
+        if (
+          subArray.some((item) =>
+            item.addons?.some((addon) => addon.addonId === iceCreamIdToCheck)
+          )
+        ) {
+          return true; // Return true immediately when a match is found
+        }
+      }
+    }
+  }
+
+  // If no matches are found, return false
+  return false;
+}
 //edit
 
 export async function UpdateIcecream(
   id: number,
+  userId: string,
   prevState: State,
   formData: FormData
 ) {
+  const iceCreamInKOT = await searchKOT(id, userId, "icecream");
+  if (iceCreamInKOT) {
+    return {
+      message: "Item in KOT. Please clear the KOT before Updating.",
+      errors: {},
+    };
+  }
   const validatedFields = createIceCreamSchema.safeParse({
     name: formData.get("name"),
     category: formData.get("category"),
@@ -126,7 +180,7 @@ export async function UpdateIcecream(
     };
   }
   const { name, category, cost } = validatedFields.data;
-  console.log(name, category, cost);
+
   try {
     const updatedIceCream = await prisma.iceCream.update({
       where: {
@@ -190,9 +244,17 @@ export async function createAddon(prevState: State, formData: FormData) {
 //edit addon
 export async function UpdateAddon(
   id: number,
+  userId: string,
   prevState: State,
   formData: FormData
 ) {
+  const iceCreamInKOT = await searchKOT(id, userId, "addon");
+  if (iceCreamInKOT) {
+    return {
+      message: "Item in KOT. Please clear the KOT before Updating.",
+      errors: {},
+    };
+  }
   const validatedFields = createAddonSchema.safeParse({
     name: formData.get("name"),
     category: formData.get("category"),

@@ -4,18 +4,35 @@ import { CreateAddon, CreateIcecream } from '@/app/validation_schemas';
 import { State, UpdateAddon } from '@/app/lib/actions';
 import { useFormState } from 'react-dom';
 import { AddonCategory } from '@prisma/client';
+import { useUser } from '@/context/UserContext';
 
 const EditAddonForm =({ initialData }: { initialData: CreateAddon | null}) => {
+    const { userId } = useUser();
     const initialState: State = { message: "", errors: {} };
     const id = initialData?.id ?? 0;
-    const updateInvoiceWithId = UpdateAddon.bind(null, id);
- 
-    const [state, formAction] = useFormState(updateInvoiceWithId, initialState);
+    if (!userId) {
+        throw new Error("User ID is required.");
+      }
+    const updateInvoiceWithId = (prevState: State, formData: FormData) => 
+        UpdateAddon(id, userId, prevState, formData);
+    
+      const [state, formAction] = useFormState(updateInvoiceWithId, initialState);
 
 
   return (
     <div className="max-w-md mx-auto p-4 bg-white rounded-lg shadow-md">
       <h2 className="text-2xl font-semibold mb-4">Edit Add-on Item</h2>
+      {state.message && (
+      <div
+        className={`mb-4 p-2 rounded ${
+          state.message === "Added successfully"
+            ? "bg-green-100 text-green-700"
+            : "bg-red-100 text-red-700"
+        }`}
+      >
+        {state.message}
+      </div>
+    )}
       <form action={formAction} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700" htmlFor="name">

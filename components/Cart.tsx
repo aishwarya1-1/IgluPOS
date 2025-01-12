@@ -5,9 +5,11 @@ import { useCart } from '../context/CartContext'
 import { Menu, Transition } from '@headlessui/react'
 import { TrashIcon, PlusIcon, XMarkIcon } from '@heroicons/react/20/solid'
 import Link  from 'next/link'
-import { deleteAddonById, getAdonsData } from '../app/lib/actions'
+import { deleteAddonById, getAdonsData, searchKOT } from '../app/lib/actions'
 import { EllipsisVerticalIcon } from '@heroicons/react/20/solid'; // Adjust the path if necessary
 import { useRouter } from 'next/navigation'
+import { useToast } from "@/hooks/use-toast"
+import { useUser } from '@/context/UserContext';
 
 
 type Addon = {
@@ -18,6 +20,8 @@ type Addon = {
 }
 
 export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
+  const { userId } = useUser();
+  const { toast } = useToast();
   const router = useRouter();
   const { cart, incrementItem, decrementItem, removeItem, addAddonToIcecream, decrementAddon, calculateTotalWithAddons ,removeAddonFromIcecream,totalCost} = useCart()
   const [showAddons, setShowAddons] = useState<{ [key: number]: boolean }>({})
@@ -69,6 +73,18 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
     
     if (confirmDelete) {
       try {
+        if (!userId) {
+          throw new Error("User ID is required.");
+        }
+        const iceCreamInKOT = await searchKOT(id, userId, "addon");
+        if (iceCreamInKOT) {
+          toast({
+            title: "Error",
+            description: "Item in KOT. Please clear the KOT before deleting.",
+            variant: "destructive",
+          });
+          return;
+        }
         await deleteAddonById(id);
         setAddons(prevAddons => prevAddons.filter(addon => addon.id !== id));
         router.refresh();
