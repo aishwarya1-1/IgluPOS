@@ -1,43 +1,40 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useCart } from '../context/CartContext'
-import { Menu, Transition } from '@headlessui/react'
+
 import { TrashIcon, PlusIcon, XMarkIcon } from '@heroicons/react/20/solid'
-import Link  from 'next/link'
-import { deleteAddonById, getAdonsData, searchKOT } from '../app/lib/actions'
-import { EllipsisVerticalIcon } from '@heroicons/react/20/solid'; // Adjust the path if necessary
-import { useRouter } from 'next/navigation'
-import { useToast } from "@/hooks/use-toast"
-import { useUser } from '@/context/UserContext';
+
+import {  getAdonsData} from '../app/lib/actions'
 
 
-type Addon = {
-  id: number
-  name: string
-  price: number
-  category: string
-}
+import { CreateAddon } from '@/app/validation_schemas'
+
+
 
 export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
-  const { userId } = useUser();
-  const { toast } = useToast();
-  const router = useRouter();
+
   const { cart, incrementItem, decrementItem, removeItem, addAddonToIcecream, decrementAddon, calculateTotalWithAddons ,removeAddonFromIcecream,totalCost} = useCart()
   const [showAddons, setShowAddons] = useState<{ [key: number]: boolean }>({})
   const [addonType, setAddonType] = useState<{ [key: number]: string | null }>({})
   const [searchQuery, setSearchQuery] = useState('')
-  const [addons, setAddons] = useState<Addon[]>([])
-
+  const [addons, setAddons] = useState<CreateAddon[]>([])
+  const hasFetched = useRef(false);
   // Fetch addons on component mount
   useEffect(() => {
+ 
+
     const fetchAddons = async () => {
       const result = await getAdonsData()
-      if (result.success) {
+      if (result?.success) {
         setAddons(result.data)
       }
+    } 
+    if (!hasFetched.current) {
+      fetchAddons();
+      hasFetched.current = true;
     }
-    fetchAddons()
+ 
   }, [])
 
 
@@ -68,32 +65,7 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
     setAddonType((prev) => ({ ...prev, [itemId]: null }))
   }
 
-  const handleDelete = async (id: number) => {
-    const confirmDelete = confirm('Are you sure you want to delete this addon?');
-    
-    if (confirmDelete) {
-      try {
-        if (!userId) {
-          throw new Error("User ID is required.");
-        }
-        const iceCreamInKOT = await searchKOT(id, userId, "addon");
-        if (iceCreamInKOT) {
-          toast({
-            title: "Error",
-            description: "Item in KOT. Please clear the KOT before deleting.",
-            variant: "destructive",
-          });
-          return;
-        }
-        await deleteAddonById(id);
-        setAddons(prevAddons => prevAddons.filter(addon => addon.id !== id));
-        router.refresh();
-      } catch (error) {
-        console.error("Error deleting addon:", error);
-      }
-    }
-  }
-
+  
   return (
     <div className="bg-white p-6 rounded-lg shadow-md mb-8">
       {cartErrors && cartErrors.length > 0 && (
@@ -234,7 +206,7 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
                       </div>
                     )}
 
-                    <div className="mt-2 space-y-1">
+                    <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
                       {addons
                         .filter(addon => addon.category.toLowerCase() === addonType[item.id]?.toLowerCase())
                         .filter(addon => 
@@ -256,62 +228,7 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
                           </button>
                         
                           {/* Ellipsis Menu as a separate component */}
-                          <Menu as="div" className="relative">
-                            <Menu.Button
-                              className="p-1 rounded-full hover:bg-gray-200"
-                              onClick={(e) => e.stopPropagation()} // Prevent parent button click
-                            >
-                              <EllipsisVerticalIcon className="h-5 w-5 text-gray-500" />
-                            </Menu.Button>
-                            <Transition
-                              enter="transition duration-100 ease-out"
-                              enterFrom="transform scale-95 opacity-0"
-                              enterTo="transform scale-100 opacity-100"
-                              leave="transition duration-75 ease-out"
-                              leaveFrom="transform scale-100 opacity-100"
-                              leaveTo="transform scale-95 opacity-0"
-                            >
-                              <Menu.Items className="absolute right-0 mt-2 w-40 origin-top-right bg-white divide-y divide-gray-100 rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
-                                <div className="px-1 py-1">
-                                  <Menu.Item>
-                                           {({ active }) => (
-                                        <>
-                                          <Link href={{
-                                            pathname: `/billing/${addon.id}/edit`,
-                                            query: {
-                                              name: addon.name,
-                                              category: addon.category,
-                                              price: addon.price,
-                                              action: "addon",
-                                            },
-                                          }}>
-                                            <button
-                                              className={`${
-                                                active ? 'bg-blue-500 text-white' : 'text-gray-900'
-                                              } group flex rounded-md items-center w-full px-2 py-2 text-sm`}
-                                            >
-                                              Edit
-                                            </button>
-                                          </Link>
-                                        </>
-                                    )}
-                                  </Menu.Item>
-                                  <Menu.Item>
-                                    {({ active }) => (
-                                      <button
-                                        className={`${
-                                          active ? 'bg-red-500 text-white' : 'text-gray-900'
-                                        } group flex rounded-md items-center w-full px-2 py-2 text-sm`}
-                                        onClick={() => handleDelete(addon.id)}
-                                      >
-                                        Delete
-                                      </button>
-                                    )}
-                                  </Menu.Item>
-                                </div>
-                              </Menu.Items>
-                            </Transition>
-                          </Menu>
+                         
                         </div>
                         
                       ))}

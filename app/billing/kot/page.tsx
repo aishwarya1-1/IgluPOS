@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Package, X, MoreVertical } from "lucide-react";
+import { Search, Package, MoreVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast"
 import {
   Dialog,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { auth } from '@/auth';
 import { getTopIcecreams } from '@/app/lib/actions';
 import { PieChartClient } from './PieChartClient';
@@ -29,7 +29,8 @@ export default async function PieWrapper() {
   }
 
   return (
-    <div className="w-full h-64 sm:h-48 md:h-64 lg:h-64 flex items-center "> {/* Center the chart */}
+    <div className="w-full h-54 sm:h-48 md:h-64 lg:h-64 flex items-center "> 
+     <h5 className="text-lg font-semibold mb-4 text-blue-600">Top 7 Selling Ice Creams</h5>{/* Center the chart */}
     <div className="w-full h-full max-w-[300px]"> {/* Set max width for small screens */}
       <PieChartClient data={iceCreamData} />
     </div>

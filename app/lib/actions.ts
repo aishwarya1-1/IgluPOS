@@ -4,13 +4,13 @@ import {
   registerUserSchema,
   createOrderSchema,
   dateRangeSchema,
-  createAddonSchema,
   CreateIcecream,
   CartItemSchemaType,
+  createAddonSchema,
 } from "../validation_schemas";
 import { startOfDay, endOfDay, eachDayOfInterval, format } from "date-fns";
-import { Category, AddonCategory, PrismaClient } from "@prisma/client";
-import { CartItem, useCart } from "@/context/CartContext";
+import { AddonCategory, PrismaClient } from "@prisma/client";
+import { CartItem } from "@/context/CartContext";
 import bcrypt from "bcryptjs";
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
@@ -21,8 +21,17 @@ import { redirect } from "next/navigation";
 export type State = {
   errors?: {
     name?: string[];
-    category?: string[];
+    categoryId?: string[];
     cost?: string[];
+  };
+  message?: string;
+};
+
+export type AddonState = {
+  errors?: {
+    name?: string[];
+    category?: string[];
+    price?: string[];
   };
   message?: string;
 };
@@ -71,25 +80,27 @@ export interface DetailedOrderItem {
 }
 
 export async function createIcecream(prevState: State, formData: FormData) {
+  console.log("formData is", formData);
   const validatedFields = createIceCreamSchema.safeParse({
     name: formData.get("name"),
-    category: formData.get("category"),
+    categoryId: formData.get("categoryId"),
     cost: formData.get("cost"),
   });
+
   if (!validatedFields.success) {
     return {
       errors: validatedFields.error.flatten().fieldErrors,
       message: "",
     };
   }
-  const { name, category, cost } = validatedFields.data;
+  const { name, categoryId, cost } = validatedFields.data;
 
   try {
     // Create a new ice cream entry in the database
     const newIceCream = await prisma.iceCream.create({
       data: {
         name,
-        category: category as Category,
+        categoryId: categoryId,
         cost,
       },
     });
@@ -170,7 +181,7 @@ export async function UpdateIcecream(
   }
   const validatedFields = createIceCreamSchema.safeParse({
     name: formData.get("name"),
-    category: formData.get("category"),
+    categoryId: formData.get("categoryId"),
     cost: formData.get("cost"),
   });
   if (!validatedFields.success) {
@@ -179,7 +190,7 @@ export async function UpdateIcecream(
       message: "",
     };
   }
-  const { name, category, cost } = validatedFields.data;
+  const { name, categoryId, cost } = validatedFields.data;
 
   try {
     const updatedIceCream = await prisma.iceCream.update({
@@ -188,7 +199,7 @@ export async function UpdateIcecream(
       },
       data: {
         name: name, // Update the name
-        category: category as Category, // Update the category
+        categoryId: categoryId, // Update the category
         cost: cost, // Update the cost
       },
     });
@@ -204,11 +215,11 @@ export async function UpdateIcecream(
   redirect("/billing");
 }
 //create addon
-export async function createAddon(prevState: State, formData: FormData) {
+export async function createAddon(prevState: AddonState, formData: FormData) {
   const validatedFields = createAddonSchema.safeParse({
     name: formData.get("name"),
     category: formData.get("category"),
-    cost: formData.get("cost"),
+    price: formData.get("cost"),
   });
   if (!validatedFields.success) {
     return {
@@ -216,7 +227,7 @@ export async function createAddon(prevState: State, formData: FormData) {
       message: "",
     };
   }
-  const { name, category, cost } = validatedFields.data;
+  const { name, category, price } = validatedFields.data;
 
   try {
     // Create a new ice cream entry in the database
@@ -224,7 +235,7 @@ export async function createAddon(prevState: State, formData: FormData) {
       data: {
         name,
         category: category as AddonCategory,
-        price: cost,
+        price: price,
       },
     });
     revalidatePath("/billing");
@@ -245,7 +256,7 @@ export async function createAddon(prevState: State, formData: FormData) {
 export async function UpdateAddon(
   id: number,
   userId: string,
-  prevState: State,
+  prevState: AddonState,
   formData: FormData
 ) {
   const iceCreamInKOT = await searchKOT(id, userId, "addon");
@@ -258,7 +269,7 @@ export async function UpdateAddon(
   const validatedFields = createAddonSchema.safeParse({
     name: formData.get("name"),
     category: formData.get("category"),
-    cost: formData.get("cost"),
+    price: formData.get("cost"),
   });
   if (!validatedFields.success) {
     return {
@@ -266,7 +277,7 @@ export async function UpdateAddon(
       message: "",
     };
   }
-  const { name, category, cost } = validatedFields.data;
+  const { name, category, price } = validatedFields.data;
 
   try {
     const updatedAddon = await prisma.addon.update({
@@ -276,10 +287,10 @@ export async function UpdateAddon(
       data: {
         name: name, // Update the name
         category: category as AddonCategory, // Update the category
-        price: cost, // Update the cost
+        price: price, // Update the cost
       },
     });
-    revalidatePath("/billing");
+    revalidatePath("/billing/settings");
   } catch (error) {
     return {
       message: "Failed to Update Addon.",
@@ -288,19 +299,24 @@ export async function UpdateAddon(
   } finally {
     await prisma.$disconnect(); // Disconnect Prisma client
   }
-  redirect("/billing");
+  redirect("/billing/settings");
 }
 
 //getIcecream
 export async function getIceCreamData() {
   try {
-    await delay(500);
+    // await delay(500);
     const iceCreams: CreateIcecream[] = await prisma.iceCream.findMany({
       select: {
         id: true,
         name: true,
         cost: true,
-        category: true,
+        categoryId: true,
+        category: {
+          select: {
+            name: true,
+          },
+        },
       },
     });
 
@@ -339,39 +355,6 @@ export async function getAdonsData() {
     };
   }
 }
-export async function getIceCreamById(id: number) {
-  try {
-    const iceCream = await prisma.iceCream.findUnique({
-      where: {
-        id: id, // Use the provided id to find the ice cream
-      },
-      select: {
-        id: true,
-        name: true,
-        category: true, // Assuming you have a category field in your iceCream model
-        cost: true, // Assuming "cost" is the price column in your schema
-      },
-    });
-
-    if (!iceCream) {
-      return {
-        success: false,
-        data: null,
-      };
-    }
-
-    return {
-      success: true,
-      data: iceCream,
-    };
-  } catch (error) {
-    console.error("Database Error:", error);
-    return {
-      success: false,
-      data: null,
-    };
-  }
-}
 
 export async function deleteIceCreamById(id: number) {
   try {
@@ -383,6 +366,7 @@ export async function deleteIceCreamById(id: number) {
     });
 
     revalidatePath("/billing");
+    return { success: true };
   } catch (error) {
     console.error(`Failed to delete ice cream with ID ${id}:`, error);
     return {
@@ -400,15 +384,14 @@ export async function deleteAddonById(id: number) {
         id: id, // Specify the id of the ice cream you want to delete
       },
     });
-
-    revalidatePath("/billing");
+    revalidatePath("/billing/settings");
+    return { success: true };
   } catch (error) {
     console.error(`Failed to delete addon with ID ${id}:`, error);
     return {
       success: false,
     };
   }
-  redirect("/billing");
 }
 //register
 
@@ -796,7 +779,11 @@ export async function getReport(
             iceCream: {
               select: {
                 name: true,
-                category: true,
+                category: {
+                  select: {
+                    name: true,
+                  },
+                },
               },
             },
           },
@@ -814,7 +801,7 @@ export async function getReport(
         iceCreamName: item.iceCream.name,
         cost: item.itemCost,
         quantity: item.quantity,
-        category: item.iceCream.category,
+        category: item.iceCream.category.name,
         addons: item.addons.map((addon) => ({
           id: addon.addonId,
           priceAtTime: addon.priceAtTime,
@@ -835,7 +822,9 @@ export async function getReport(
 }
 
 //todaySales
-export async function getTodaySales(userId: string | undefined) {
+export async function getTodaySalesGroupedByPayment(
+  userId: string | undefined
+) {
   const resultuser = createOrderSchema
     .pick({ userId: true })
     .safeParse({ userId: userId });
@@ -843,11 +832,14 @@ export async function getTodaySales(userId: string | undefined) {
   if (!resultuser.success) {
     throw new Error("User Id Validation failed ");
   }
+
   const { userId: userIdVal } = resultuser.data;
   const todayStart = startOfDay(new Date());
   const todayEnd = endOfDay(new Date());
+
   try {
-    const result = await prisma.order.aggregate({
+    const result = await prisma.order.groupBy({
+      by: ["modeOfPayment"],
       _sum: {
         totalCost: true,
       },
@@ -857,17 +849,21 @@ export async function getTodaySales(userId: string | undefined) {
           gte: todayStart,
           lte: todayEnd,
         },
+        status: "SUCCESS", // Only count successful orders
       },
     });
 
-    const totalSalesSum = result._sum.totalCost || 0; // Default to 0 if no orders
-    return totalSalesSum;
+    const groupedSales = result.map((group) => ({
+      modeOfPayment: group.modeOfPayment,
+      totalSales: group._sum.totalCost || 0,
+    }));
+
+    return groupedSales;
   } catch (error) {
     console.error("Database Error:", error);
-    throw new Error("Failed to fetch todays sales.");
+    throw new Error("Failed to fetch today's sales grouped by payment mode.");
   }
 }
-
 //kot order creation
 export async function updateKOTCounter(userId: string) {
   const today = new Date();
@@ -1181,5 +1177,111 @@ export async function cancelBill(
     };
   } finally {
     await prisma.$disconnect();
+  }
+}
+
+export async function getCategories() {
+  try {
+    const categories = await prisma.category.findMany({});
+    const sortedCategories = categories.sort((a, b) => {
+      const aStartsWithI = a.name.startsWith("I") ? 0 : 1;
+      const bStartsWithI = b.name.startsWith("I") ? 0 : 1;
+      return aStartsWithI - bStartsWithI || a.name.localeCompare(b.name);
+    });
+
+    return {
+      success: true,
+      data: categories,
+    };
+  } catch (error) {
+    console.error("Database Error:", error);
+    return {
+      success: false,
+      data: [],
+    };
+  }
+}
+
+export async function addCategory(name: string) {
+  try {
+    await prisma.category.create({
+      data: {
+        name,
+      },
+    });
+
+    revalidatePath("/billing");
+    return { success: true };
+  } catch (error) {
+    console.error("Database Error:", error);
+    return { success: false };
+  }
+}
+
+export async function updateCategory(id: number, name: string) {
+  try {
+    await prisma.category.update({
+      where: { id },
+      data: { name },
+    });
+
+    revalidatePath("/billing");
+    return { success: true };
+  } catch (error) {
+    console.error("Database Error:", error);
+    return { success: false };
+  }
+}
+
+export async function deleteCategory(id: number) {
+  try {
+    await prisma.category.delete({
+      where: { id },
+    });
+
+    revalidatePath("/billing");
+    return { success: true };
+  } catch (error) {
+    console.error("Database Error:", error);
+    return { success: false };
+  }
+}
+
+//email
+export async function getEmail(userId: string | undefined) {
+  if (!userId) {
+    return null;
+  }
+  const id = parseInt(userId as string, 10); // Convert userId to a number
+  if (isNaN(id)) {
+    throw new Error("Invalid User ID");
+  }
+
+  // Prisma query to fetch email
+  const user = await prisma.login.findUnique({
+    where: { id },
+    select: { email: true },
+  });
+
+  return user?.email || null; // Return email or null if user not found
+}
+
+export async function updateEmail(userId: string | undefined, email: string) {
+  if (!userId) {
+    return null;
+  }
+  const id = parseInt(userId as string, 10); // Convert userId to a number
+  if (isNaN(id)) {
+    throw new Error("Invalid User ID");
+  }
+  try {
+    await prisma.login.update({
+      where: { id },
+      data: { email },
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Database Error:", error);
+    return { success: false };
   }
 }

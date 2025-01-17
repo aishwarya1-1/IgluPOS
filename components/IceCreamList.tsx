@@ -1,19 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useCart } from '../context/CartContext'
-import { Button, Menu, Transition } from '@headlessui/react'
+import {  Menu, Transition } from '@headlessui/react'
 import { EllipsisVerticalIcon } from '@heroicons/react/24/solid'
 import Link from 'next/link'
-import { getIceCreamData, deleteIceCreamById, searchKOT } from '@/app/lib/actions'
-import { useRouter } from 'next/navigation'
-import { Category } from '@prisma/client'
+import { getIceCreamData, deleteIceCreamById, searchKOT, getCategories } from '@/app/lib/actions'
+
+
 import { CreateIcecream } from '@/app/validation_schemas'
 import { useToast } from "@/hooks/use-toast"
 import { useUser } from '@/context/UserContext';
 
+
 export default function IceCreamList() {
-  const router = useRouter();
+
   const { userId } = useUser();
   const { toast } = useToast();
   const [iceCreamFlavors, setIceCreamFlavors] = useState<CreateIcecream[]>([]);
@@ -21,27 +22,42 @@ export default function IceCreamList() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [categories, setCategories] = useState<{id:number,name:string}[]>([]);
   const { addToCart } = useCart()
+  const hasFetched = useRef(false);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        const result = await getIceCreamData();
-        if (result.success) {
-          setIceCreamFlavors(result.data);
-        } else {
-          setError('Failed to fetch ice cream data');
+    const fetchAllData = async () => {
+      if (!hasFetched.current) {
+        try {
+          setIsLoading(true);
+          // Fetch both data sets concurrently
+          const [iceCreamsResult, categoriesResult] = await Promise.all([
+            getIceCreamData(),
+            getCategories()
+          ]);
+  
+          if (iceCreamsResult.success) {
+            setIceCreamFlavors(iceCreamsResult.data);
+          } else {
+            setError('Failed to fetch ice cream data');
+          }
+  
+          if (categoriesResult.success) {
+            setCategories(categoriesResult.data);
+          }
+  
+        } catch (err) {
+          setError('An error occurred while fetching data');
+          console.error(err);
+        } finally {
+          setIsLoading(false);
+          hasFetched.current = true;
         }
-      } catch (err) {
-        setError('An error occurred while fetching data');
-        console.error(err);
-      } finally {
-        setIsLoading(false);
       }
     };
-
-    fetchData();
+  
+    fetchAllData();
   }, []);
 
   if (isLoading) {
@@ -54,7 +70,7 @@ export default function IceCreamList() {
 
   const filteredFlavors = iceCreamFlavors.filter((flavor) => {
     const matchesSearch = flavor.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || flavor.category === selectedCategory;
+    const matchesCategory = selectedCategory === 'All' || flavor.category.name === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -62,7 +78,7 @@ export default function IceCreamList() {
     const confirmDelete = confirm('Are you sure you want to delete this ice cream?');
     
     if (confirmDelete) {
-      try {
+      
         if (!userId) {
           throw new Error("User ID is required.");
         }
@@ -75,13 +91,24 @@ export default function IceCreamList() {
           });
           return;
         }
-        await deleteIceCreamById(id);
-        setIceCreamFlavors(prevFlavors => prevFlavors.filter(flavor => flavor.id !== id));
-        router.refresh();
-      } catch (error) {
-        console.error("Error deleting ice cream:", error);
-      }
-    }
+        const result = await deleteIceCreamById(id);
+        if(result.success){
+          setIceCreamFlavors(prevFlavors => prevFlavors.filter(flavor => flavor.id !== id));
+          toast({
+            title: "Success",
+            description: "Ice cream deleted successfully",
+          });
+        }
+        else{
+          toast({
+            title: "Error",
+            description: "Icecream in order history/DB issue.Failed to delete",
+            variant: "destructive",
+          });
+        }
+      
+      } 
+    
   }
 
   return (
@@ -95,9 +122,9 @@ export default function IceCreamList() {
           onChange={(e) => setSelectedCategory(e.target.value)}
         >
           <option value="All">All Categories</option>
-          {Object.values(Category).map((category) => (
-            <option key={category} value={category}>
-              {category}
+          {Object.values(categories).map((category) => (
+            <option key={category.id} value={category.name}>
+              {category.name}
             </option>
           ))}
         </select>
@@ -135,7 +162,7 @@ export default function IceCreamList() {
                             pathname: `/billing/${flavor.id}/edit`,
                             query: {
                               name: flavor.name,
-                              category: flavor.category,
+                              category: flavor.category.name,
                               price: flavor.cost,
                               action: "icecream",
                             },
@@ -168,7 +195,7 @@ export default function IceCreamList() {
               </Menu>
               <div className="mb-2">
                 <h3 className="text-lg font-semibold">{flavor.name}</h3>
-                <p className="text-xs italic text-gray-500">({flavor.category})</p>
+                <p className="text-xs italic text-gray-500">({flavor.category.name})</p>
               </div>
               <p className="text-gray-600 mb-4">{flavor.cost.toFixed(2)}</p>
               <button

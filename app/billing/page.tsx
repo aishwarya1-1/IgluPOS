@@ -14,7 +14,7 @@ export default async function Home({ searchParams }: HomeProps) {
     <main className="container mx-auto px-4 py-8">
       {/* Adjusting the margin and text alignment for the title on mobile */}
       <h1 className="text-3xl md:text-4xl font-bold mb-4 md:mb-8 text-center text-blue-600 mt-7 md:mt-0">
-        Iglu Cream Shop Billing
+        Iglu Ice Cream Shop Billing
       </h1>
 
       {/* Adjusting the grid layout for mobile */}

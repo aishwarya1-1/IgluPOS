@@ -2,8 +2,6 @@
 'use client';
 
 import Link from 'next/link';
-
-import { useActionState } from 'react';
 import { authenticate } from '@/app/lib/actions';
 import { ExclamationCircleIcon } from '@heroicons/react/24/solid';
 import React from 'react';

@@ -18,6 +18,7 @@ type Addon = {
 };
 
 export function Report({ data }: { data: DateRange | undefined }) {
+    const gstRate: number = parseFloat(process.env.GST ?? "0.0");
     const { userId } = useUser();
     const [error, setError] = useState<string | null>(null);
 
@@ -153,7 +154,7 @@ export function Report({ data }: { data: DateRange | undefined }) {
             const startDate = format(data.from, "yyyy-MM-dd");
             const endDate = format(data.to, "yyyy-MM-dd");
             try {
-                const gstRate = 0;
+     
                 const detailedOrders = await getReport(startDate, endDate, userId);
                 const transformedData = detailedOrders.map((order) => {
                     const subTotal = order.cost * order.quantity;

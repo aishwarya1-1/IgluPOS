@@ -25,7 +25,7 @@ const Page = ({ params }: { params: { id: string } }) => {
     id,
     name,
     category,
-    cost: parseFloat(price), // Convert price string to number
+    price: parseFloat(price), // Convert price string to number
   }
 
   return (

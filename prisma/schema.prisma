@@ -13,21 +13,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+
+enum AddonCategory {
+  Topping
+  Cone
+}
+
+model Category {
+  id       Int          @id @default(autoincrement())
+  name     String       @unique
+  iceCreams IceCream[]  @relation("IceCreamCategory")
+}
 model IceCream {
   id         Int          @id @default(autoincrement())
   name       String       @db.VarChar(255)
-  category   Category     @default(IceCream)
-  cost       Float
-  // Relation field
+  categoryId   Int         // Changed from enum to relation
+  cost         Float
+  // Relations
+ category    Category @relation("IceCreamCategory", fields: [categoryId], references: [id])
   orderItems OrderItems[]
 }
 
-enum Category {
-  IceCream
-  Falooda
-  MilkShakes
- 
-}
+
 
 enum ModeOfPayment {
   Cash
@@ -109,7 +116,6 @@ model Addon {
   name            String
   price           Float
   category        AddonCategory
-  // Relations
   orderItemAddons OrderItemAddon[]
 }
 
@@ -125,8 +131,4 @@ model OrderItemAddon {
   @@unique([orderId, addonId])
 }
 
-// New enum for addons
-enum AddonCategory {
-  Topping
-  Cone
-}
+

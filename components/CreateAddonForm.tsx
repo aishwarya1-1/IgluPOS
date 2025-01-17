@@ -1,12 +1,12 @@
 'use client';
 import React, {  useEffect, useState } from 'react';
 import {  useFormState } from 'react-dom'
-import { createAddon,State } from '@/app/lib/actions';
+import { createAddon } from '@/app/lib/actions';
 import { AddonCategory } from '@prisma/client';
-// import { Button } from '@headlessui/react';
+import { AddonState } from '@/app/lib/actions';
 
 const CreateAddonForm = () => {
-  const initialState: State = { message: "", errors: {} };
+  const initialState: AddonState = { message: "", errors: {} };
   const [state, formAction] = useFormState(createAddon, initialState);
 
   const [key, setKey] = useState(0);
@@ -68,7 +68,7 @@ const CreateAddonForm = () => {
             className="mt-1 block w-full p-2 border border-gray-300 rounded"
             aria-describedby="category-error"
           >
-             {Object.values(AddonCategory).map((category) => (
+            {Object.values(AddonCategory).map((category) => (
               <option key={category} value={category}>
                 {category}
               </option>
@@ -98,7 +98,7 @@ const CreateAddonForm = () => {
             aria-describedby="cost-error"
           />
            <div id="cost-error" aria-live="polite" aria-atomic="true">
-              {state.errors?.cost && state.errors.cost.map((error:string)=>(
+              {state.errors?.price && state.errors.price.map((error:string)=>(
             <p className="mt-2 text-sm text-red-500" key={error}>
               {error}
             </p>

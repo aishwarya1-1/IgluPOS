@@ -1,6 +1,5 @@
 // app/layout.tsx
-import { CartProvider } from '../context/CartContext'
-import Sidebar from '../components/Sidebar'
+
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
 

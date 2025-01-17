@@ -15,10 +15,6 @@ export interface AddonItem {
   addonQuantity: number;
 }
 
-// interface Addons {
-//   cone: AddonItem[];
-//   topping: AddonItem[];
-// }
 
 export interface CartItem extends IceCream {
   quantity: number;

@@ -1,11 +1,12 @@
 'use client';
 import React, {  useEffect, useState } from 'react';
 import {  useFormState } from 'react-dom'
-import { createIcecream,State } from '@/app/lib/actions';
-import { Category } from '@prisma/client';
-// import { Button } from '@headlessui/react';
+import { createIcecream,getCategories,State } from '@/app/lib/actions';
+
+
 
 const CreateIceCreamForm = () => {
+  const [categories, setCategories] = useState<{id:number,name:string}[]>([]);
   const initialState: State = { message: "", errors: {} };
   const [state, formAction] = useFormState(createIcecream, initialState);
 
@@ -18,7 +19,20 @@ const CreateIceCreamForm = () => {
       setKey(prevKey => prevKey + 1);
     }
   }, [state]);
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+       
+        const categories = await getCategories();
+     
+        setCategories(categories.data);
+      } catch (err) {
+    
+      }
+    };
 
+    fetchCategories();
+  }, []); 
 
   return (
     <div className="max-w-md mx-auto p-4 bg-white rounded-lg shadow-md ">
@@ -37,7 +51,7 @@ const CreateIceCreamForm = () => {
       <form key ={key} action={formAction} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700" htmlFor="name">
-            Ice Cream Name
+             Name
           </label>
           <input
             type="text"
@@ -61,23 +75,23 @@ const CreateIceCreamForm = () => {
             Category
           </label>
           <select
-            id="category"
+            id="categoryId"
     
-            name="category"
+            name="categoryId"
        
             className="mt-1 block w-full p-2 border border-gray-300 rounded"
             aria-describedby="category-error"
           >
-            {Object.values(Category).map((category) => (
-              <option key={category} value={category}>
-                {category}
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
               </option>
             ))}
      
            
           </select>
           <div id="category-error" aria-live="polite" aria-atomic="true">
-              {state.errors?.category && state.errors.category.map((error:string)=>(
+              {state.errors?.categoryId && state.errors.categoryId.map((error:string)=>(
             <p className="mt-2 text-sm text-red-500" key={error}>
               {error}
             </p>

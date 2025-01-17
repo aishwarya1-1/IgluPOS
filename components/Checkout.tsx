@@ -3,7 +3,7 @@
 import { useFormState } from 'react-dom';
 import { CartItem, useCart } from '../context/CartContext';
 import { useUser } from '@/context/UserContext';
-import { appendKOTorder, BillState, createBill, createKOTBill, deleteKOTorder, editKOTorder, updateKOTCounter } from '@/app/lib/actions';
+import { appendKOTorder, BillState, createBill, createKOTBill, deleteKOTorder, editKOTorder} from '@/app/lib/actions';
 import { useEffect, useState } from 'react';
 import Cart from './Cart';
 import { useRouter } from 'next/navigation'; 
@@ -78,7 +78,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
         <body>
           <div class="header">
             <h1 style="font-size: 16px; margin: 0;">Iglu Ice Cream Shop</h1>
-            <p style="margin: 5px 0;">Nehru Nagar Belgaum</p>
+           <p style="margin: 5px 0;">Branch Id: ${userId}</p>
             <p style="margin: 5px 0;">Date: ${new Date().toLocaleDateString()}</p>
             <p style="margin: 5px 0; font-weight: bold;">CUSTOMER COPY</p>
             ${billNo ? `<p style="margin: 5px 0;">Bill Number: ${billNo}</p>` : ''}
@@ -89,7 +89,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
                 <span>${item.name} x ${item.quantity}</span>
                 <span>Rs.${(item.cost * item.quantity).toFixed(2)}</span>
               </div>
-              ${item.addons ? `
+             ${item.addons && item.addons.length > 0 ? `
                 <div class="addons" style="margin-left: 20px; font-size: 11px;">
                   <div>Addons:</div>
                   ${item.addons.map(addon => `
@@ -105,17 +105,10 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
           </div>
           <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
           <div class="total">
-            <div class="item">
-              <span>Subtotal:</span>
-              <span>Rs.${totalCost.toFixed(2)}</span>
-            </div>
-            <div class="item">
-              <span>GST (10%):</span>
-              <span>Rs.${(totalCost * 0.1).toFixed(2)}</span>
-            </div>
+           
             <div class="item" style="font-weight: bold;">
               <span>Total:</span>
-              <span>Rs.${(totalCost * 1.1).toFixed(2)}</span>
+              <span>Rs.${totalCost.toFixed(2)}</span>
             </div>
           </div>
           <script>
@@ -149,6 +142,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
         <body>
           <div class="header">
             <h1 style="font-size: 16px; margin: 0;">Iglu Ice Cream Shop</h1>
+            <p style="margin: 5px 0;">Branch Id: ${userId}</p>
             <p style="margin: 5px 0;">Date: ${new Date().toLocaleDateString()}</p>
             <p style="margin: 5px 0;">Time: ${new Date().toLocaleTimeString()}</p>
             <p style="margin: 5px 0; font-weight: bold;">KITCHEN COPY</p>
@@ -161,7 +155,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
                 <span style="font-size: 14px; font-weight: bold;">${item.quantity}x</span>
                 <span style="font-size: 14px;">${item.name}</span>
               </div>
-              ${item.addons ? `
+              ${item.addons && item.addons.length > 0 ? `
                 <div class="addons" style="margin-left: 40px; font-size: 12px;">
                   <div>Addons:</div>
                   ${item.addons.map(addon => `
@@ -200,6 +194,7 @@ useEffect(() => {
       setKotActionState(undefined)
       setIsSaveAndPrintDisabled(false);
       setIsKOTDisabled(false);
+      clearCart();
       return;
     }
 
@@ -223,24 +218,35 @@ useEffect(() => {
     if (cartItems && (kotAction === 'checkout' || kotAction === 'edit')) {
       const parsedCartItems = JSON.parse(decodeURIComponent(cartItems));
       const secParsedCartItems = JSON.parse(parsedCartItems);
-
+console.log("secParsedCartItems",secParsedCartItems)
       if (Array.isArray(secParsedCartItems)) {
         const itemsToPopulate = kotAction === 'edit'
           ? secParsedCartItems[secParsedCartItems.length - 1]
           : secParsedCartItems.flat();
-        console.log(itemsToPopulate);
+        console.log("itemsToPopulate",itemsToPopulate);
 
         const consolidatedArray = itemsToPopulate.reduce((acc: CartItem[], item: CartItem) => {
           const existingItem = acc.find((i) => i.name === item.name);
           if (existingItem) {
             existingItem.quantity += item.quantity;
+            if(item.addons){
+            item.addons.forEach((addon) => {
+              const existingAddon = existingItem.addons?.find((a) => a.addonName === addon.addonName);
+              if (existingAddon) {
+                existingAddon.addonQuantity += addon.addonQuantity; // Increase quantity of the existing addon
+              } else {
+                existingItem.addons?.push({ ...addon }); // Add new addon if it doesn't exist
+              }
+            
+            });
+          }
           } else {
             acc.push({ ...item });
           }
           return acc;
         }, [] as CartItem[]);
 
-        console.log(consolidatedArray);
+        console.log("consolidatedArray",consolidatedArray);
         populateCart(consolidatedArray);
       }
     } else if (!cartItems && (kotAction === 'checkout' || kotAction === 'edit')) {
