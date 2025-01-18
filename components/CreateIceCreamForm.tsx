@@ -26,7 +26,7 @@ const CreateIceCreamForm = () => {
         const categories = await getCategories();
      
         setCategories(categories.data);
-      } catch (err) {
+      } catch  {
     
       }
     };

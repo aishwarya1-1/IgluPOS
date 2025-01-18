@@ -1,4 +1,4 @@
-import Link from 'next/link';
+
 import { PowerIcon } from '@heroicons/react/16/solid';
 import { signOut } from '@/auth';
 import NavLinks from './navLinks';

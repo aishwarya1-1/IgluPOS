@@ -87,7 +87,7 @@ const BillCancelDialog = ({ isOpen, onClose }: BillCancelDialogProps) => {
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch  {
       toast({
         title: "Error",
         description: "Bill Cancel Failed",

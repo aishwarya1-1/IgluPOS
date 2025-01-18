@@ -213,7 +213,7 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
                           addon.name.toLowerCase().includes(searchQuery.toLowerCase())
                         )
                         .map(addon => (
-                          <div className="flex justify-between items-center bg-gray-300 px-2 py-1 rounded w-full">
+                          <div  key={addon.id} className="flex justify-between items-center bg-gray-300 px-2 py-1 rounded w-full">
                           {/* Name and Price inside the parent button */}
                           <button
                             onClick={(e) => {
@@ -227,7 +227,7 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
                             <span className="text-sm text-gray-600">Rs.{addon.price}</span>
                           </button>
                         
-                          {/* Ellipsis Menu as a separate component */}
+                         
                          
                         </div>
                         

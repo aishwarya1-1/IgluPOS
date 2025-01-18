@@ -73,6 +73,8 @@ export const dateRangeSchema = z.object({
   startDate: dateSchema,
   endDate: dateSchema,
 });
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const createIceCreamSchemaWithId = createIceCreamSchema.extend({
   id: z.number(),
   category: z.object({
@@ -85,6 +87,7 @@ export type CreateIcecream = z.infer<typeof createIceCreamSchemaWithId>;
 
 export type CartItemSchemaType = z.infer<typeof CartItemSchema>;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const createAddonSchemaWithId = createAddonSchema.extend({
   id: z.number(),
 });

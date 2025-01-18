@@ -54,9 +54,7 @@ export function DatePickerWithRange({
     }
     fetchData()
   }, []);
-  // React.useEffect(() => {
-  //   console.log('graphResults ',graphResults); // Log the updated graphResults
-  // }, [graphResults]);
+
 
 const handleGoClick = async () => {
   if(date !== undefined){

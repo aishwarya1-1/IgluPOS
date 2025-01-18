@@ -97,7 +97,7 @@ export async function createIcecream(prevState: State, formData: FormData) {
 
   try {
     // Create a new ice cream entry in the database
-    const newIceCream = await prisma.iceCream.create({
+    await prisma.iceCream.create({
       data: {
         name,
         categoryId: categoryId,
@@ -109,7 +109,7 @@ export async function createIcecream(prevState: State, formData: FormData) {
       message: "Added successfully",
       errors: {},
     };
-  } catch (error) {
+  } catch {
     return {
       message: "Failed to Add Ice Cream.",
       errors: {},
@@ -193,7 +193,7 @@ export async function UpdateIcecream(
   const { name, categoryId, cost } = validatedFields.data;
 
   try {
-    const updatedIceCream = await prisma.iceCream.update({
+    await prisma.iceCream.update({
       where: {
         id: id, // Specify the id of the ice cream to update
       },
@@ -204,7 +204,7 @@ export async function UpdateIcecream(
       },
     });
     revalidatePath("/billing");
-  } catch (error) {
+  } catch {
     return {
       message: "Failed to Update Ice Cream.",
       errors: {},
@@ -231,7 +231,7 @@ export async function createAddon(prevState: AddonState, formData: FormData) {
 
   try {
     // Create a new ice cream entry in the database
-    const newAddon = await prisma.addon.create({
+    await prisma.addon.create({
       data: {
         name,
         category: category as AddonCategory,
@@ -243,7 +243,7 @@ export async function createAddon(prevState: AddonState, formData: FormData) {
       message: "Added successfully",
       errors: {},
     };
-  } catch (error) {
+  } catch {
     return {
       message: "Failed to Add the Addon.",
       errors: {},
@@ -280,7 +280,7 @@ export async function UpdateAddon(
   const { name, category, price } = validatedFields.data;
 
   try {
-    const updatedAddon = await prisma.addon.update({
+    await prisma.addon.update({
       where: {
         id: id, // Specify the id of the ice cream to update
       },
@@ -291,7 +291,7 @@ export async function UpdateAddon(
       },
     });
     revalidatePath("/billing/settings");
-  } catch (error) {
+  } catch {
     return {
       message: "Failed to Update Addon.",
       errors: {},
@@ -359,7 +359,7 @@ export async function getAdonsData() {
 export async function deleteIceCreamById(id: number) {
   try {
     // This is the command that tells Prisma to delete the ice cream based on its ID.
-    const deletedIceCream = await prisma.iceCream.delete({
+    await prisma.iceCream.delete({
       where: {
         id: id, // Specify the id of the ice cream you want to delete
       },
@@ -379,7 +379,7 @@ export async function deleteIceCreamById(id: number) {
 export async function deleteAddonById(id: number) {
   try {
     // This is the command that tells Prisma to delete the ice cream based on its ID.
-    const deletedAddon = await prisma.addon.delete({
+    await prisma.addon.delete({
       where: {
         id: id, // Specify the id of the ice cream you want to delete
       },
@@ -412,7 +412,7 @@ export async function registerUser(prevState: UserState, formData: FormData) {
   const hashedPassword = await bcrypt.hash(password, 10);
   try {
     // Create a new ice cream entry in the database
-    const newIceCream = await prisma.login.create({
+    await prisma.login.create({
       data: {
         email,
         username,
@@ -469,9 +469,6 @@ export async function authenticate(
     }
     throw error;
   }
-}
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 //billing
@@ -656,7 +653,7 @@ export async function getSalesByDate(
   }
   const { startDate: start, endDate: end } = result.data;
   const dateRange = eachDayOfInterval({ start: start, end: end });
-  // console.log(start, end, dateRange);
+
   const resultuser = createOrderSchema
     .pick({ userId: true })
     .safeParse({ userId: userId });
@@ -883,7 +880,7 @@ export async function updateKOTCounter(userId: string) {
     const updatedCounter = await prisma.userOrderCounter.update({
       where: { loginId: parseInt(userId) },
       data: {
-        KOTCounter: 0,
+        KOTCounter: 1,
         lastUpdated: new Date(),
       },
       select: { KOTCounter: true },
@@ -915,7 +912,6 @@ export async function createKOTBill(
   }
 
   try {
-    let kotNum;
     const updatedCounter = await updateKOTCounter(userId);
     // Create the new order
     const newOrder = await prisma.kOTOrder.create({
@@ -930,9 +926,8 @@ export async function createKOTBill(
         kotNumber: true, // Retrieve the updated counter value
       },
     });
-    kotNum = newOrder.kotNumber;
+    const kotNum = newOrder.kotNumber;
 
-    console.log("Done");
     revalidatePath("/billing/kot");
 
     return {
@@ -995,13 +990,13 @@ export async function deleteKOTorder(
     return { message: "User ID is required", kotNum: undefined };
   }
   try {
-    const deletedKOTOrder = await prisma.kOTOrder.delete({
+    await prisma.kOTOrder.delete({
       where: {
         loginId: parseInt(userId),
         id: kotid,
       },
     });
-  } catch (error) {
+  } catch {
     throw new Error("Failed to delete from KOT.");
   }
 }
@@ -1108,9 +1103,8 @@ export async function editKOTorder(
         );
         jitem[jitem.length - 1] = updatedCart;
       }
-      let finaltotal;
 
-      finaltotal = existingKOTOrder.total + totalCost - lasttotal;
+      const finaltotal = existingKOTOrder.total + totalCost - lasttotal;
 
       const updatedKOTOrder = await prisma.kOTOrder.update({
         where: { loginId: parseInt(userId), id: kotid },
@@ -1170,7 +1164,7 @@ export async function cancelBill(
       success: true,
       message: "Bill Cancelled Successfully",
     };
-  } catch (error) {
+  } catch {
     return {
       success: false,
       message: "Bill Cancellation Failed",
@@ -1183,7 +1177,7 @@ export async function cancelBill(
 export async function getCategories() {
   try {
     const categories = await prisma.category.findMany({});
-    const sortedCategories = categories.sort((a, b) => {
+    categories.sort((a, b) => {
       const aStartsWithI = a.name.startsWith("I") ? 0 : 1;
       const bStartsWithI = b.name.startsWith("I") ? 0 : 1;
       return aStartsWithI - bStartsWithI || a.name.localeCompare(b.name);

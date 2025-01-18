@@ -17,6 +17,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
 
   const createBilling = async (prevState: BillState, formData: FormData ) => {
     const currentKotActionState = kotActionState;
+  
 
     return createBill(cart, totalCost, userId, prevState, formData,currentKotActionState);
     
@@ -27,7 +28,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   const [action, setAction] = useState('');
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [customerName, setCustomerName] = useState("");
-  const [billKeyKOT, setBillKeyKOT] = useState<number | undefined>(kotid);
+
   const router = useRouter();
 
   const [isKOTDisabled, setIsKOTDisabled] = useState(false);
@@ -195,6 +196,7 @@ useEffect(() => {
       setIsSaveAndPrintDisabled(false);
       setIsKOTDisabled(false);
       clearCart();
+  
       return;
     }
 
@@ -218,12 +220,12 @@ useEffect(() => {
     if (cartItems && (kotAction === 'checkout' || kotAction === 'edit')) {
       const parsedCartItems = JSON.parse(decodeURIComponent(cartItems));
       const secParsedCartItems = JSON.parse(parsedCartItems);
-console.log("secParsedCartItems",secParsedCartItems)
+
       if (Array.isArray(secParsedCartItems)) {
         const itemsToPopulate = kotAction === 'edit'
           ? secParsedCartItems[secParsedCartItems.length - 1]
           : secParsedCartItems.flat();
-        console.log("itemsToPopulate",itemsToPopulate);
+    
 
         const consolidatedArray = itemsToPopulate.reduce((acc: CartItem[], item: CartItem) => {
           const existingItem = acc.find((i) => i.name === item.name);
@@ -246,7 +248,7 @@ console.log("secParsedCartItems",secParsedCartItems)
           return acc;
         }, [] as CartItem[]);
 
-        console.log("consolidatedArray",consolidatedArray);
+      
         populateCart(consolidatedArray);
       }
     } else if (!cartItems && (kotAction === 'checkout' || kotAction === 'edit')) {
@@ -281,6 +283,7 @@ useEffect(() => {
     hasPrinted = true;
 
     const UserKOTCounter = state.message.split(',');
+ 
 
     const userOrderId = UserKOTCounter[0] ? UserKOTCounter[0].trim() : null;  // Get the first part and trim whitespace
 const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefined; // Get the second part and trim whitespace
@@ -291,7 +294,7 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
 
     if (kotActionState === 'checkout') {
       await printCustomerBill(userOrderId);
-      await deleteKOTorder(billKeyKOT,userId);
+      await deleteKOTorder(kotid,userId);
     } else {
       await printCustomerBill(userOrderId);
 
@@ -329,7 +332,7 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
       if(kotActionState){
         if(kotActionState==='append'){
           try{
-          const appendRes=await appendKOTorder(billKeyKOT,cart,totalCost,userId)
+          const appendRes=await appendKOTorder(kotid,cart,totalCost,userId)
           printKitchenOrder(appendRes.kotNum);
         clearCart();
         toast({
@@ -349,7 +352,7 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
         }
         else if(kotActionState==='edit'){
           try{
-          const editRes=await editKOTorder(billKeyKOT,cart,totalCost,userId)
+          const editRes=await editKOTorder(kotid,cart,totalCost,userId)
           printKitchenOrder(editRes.kotNum);
           clearCart();
           toast({
@@ -383,12 +386,12 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
    
     } catch (error) {
       console.error('Error saving bill:', error);
-      let errorMessage = "An error occurred while saving the bill";
+      let errorMessage 
       if (error instanceof Error) {
         errorMessage = error.message;
       }
       toast({
-        title: "Error",
+        title: errorMessage,
         description:'An error occurred while saving the bill',
         variant: "destructive",
       });

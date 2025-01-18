@@ -6,25 +6,63 @@ import { Button } from '@headlessui/react';
 import { format } from 'date-fns';
 import React, { useState } from 'react';
 import { DateRange } from 'react-day-picker';
+import { DetailedOrderItem } from '@/app/lib/actions';
 
 type Addon = {
-  addonId: number;
+  id: number;
   addon: {
     name: string;
-    category: string; // Adjust as necessary
+    category: string;
   };
   quantity: number;
   priceAtTime: number;
 };
+
+interface IceCreamAnalytics {
+    [key: string]: {
+        name: string;
+        quantity: number;
+        revenue: number;
+        category: string;
+    }
+}
+
+interface AddonAnalytics {
+    [key: string]: {
+        name: string;
+        quantity: number;
+        revenue: number;
+    }
+}
+
+// New interfaces for analytics results
+interface IceCreamAnalyticsResult {
+    name: string;
+    quantity: number;
+    revenue: number;
+    category: string;
+}
+
+interface AddonAnalyticsResult {
+    name: string;
+    quantity: number;
+    revenue: number;
+}
+
+interface AnalyticsResults {
+    iceCream: IceCreamAnalyticsResult[];
+    addons: AddonAnalyticsResult[];
+    categories: AddonAnalyticsResult[];
+}
 
 export function Report({ data }: { data: DateRange | undefined }) {
     const gstRate: number = parseFloat(process.env.GST ?? "0.0");
     const { userId } = useUser();
     const [error, setError] = useState<string | null>(null);
 
-    const generateAnalytics = (orders: any[]) => {
+    const generateAnalytics = (orders: DetailedOrderItem[]): AnalyticsResults => {
         // Ice cream analysis
-        const iceCreamAnalytics = orders.reduce((acc, order) => {
+        const iceCreamAnalytics = orders.reduce<IceCreamAnalytics>((acc, order) => {
             const key = order.iceCreamName;
             if (!acc[key]) {
                 acc[key] = {
@@ -40,7 +78,7 @@ export function Report({ data }: { data: DateRange | undefined }) {
         }, {});
 
         // Addons analysis
-        const addonAnalytics = orders.reduce((acc, order) => {
+        const addonAnalytics = orders.reduce<AddonAnalytics>((acc, order) => {
             order.addons?.forEach((addon: Addon) => {
                 const key = addon.addon.name;
                 if (!acc[key]) {
@@ -57,7 +95,7 @@ export function Report({ data }: { data: DateRange | undefined }) {
         }, {});
 
         // Category analysis
-        const categoryAnalytics = orders.reduce((acc, order) => {
+        const categoryAnalytics = orders.reduce<AddonAnalytics>((acc, order) => {
             const key = order.category;
             if (!acc[key]) {
                 acc[key] = {
@@ -72,15 +110,21 @@ export function Report({ data }: { data: DateRange | undefined }) {
         }, {});
 
         return {
-            iceCream: Object.values(iceCreamAnalytics).sort((a: any, b: any) => b.revenue - a.revenue),
-            addons: Object.values(addonAnalytics).sort((a: any, b: any) => b.quantity - a.quantity),
-            categories: Object.values(categoryAnalytics).sort((a: any, b: any) => b.revenue - a.revenue)
+            iceCream: Object.values(iceCreamAnalytics)
+                .sort((a: IceCreamAnalyticsResult, b: IceCreamAnalyticsResult) => b.revenue - a.revenue),
+            addons: Object.values(addonAnalytics)
+                .sort((a: AddonAnalyticsResult, b: AddonAnalyticsResult) => b.quantity - a.quantity),
+            categories: Object.values(categoryAnalytics)
+                .sort((a: AddonAnalyticsResult, b: AddonAnalyticsResult) => b.revenue - a.revenue)
         };
     };
 
-    const generateCSV = (data: TransformedOrderItem[], analytics: any): string => {
+    const generateCSV = (data: TransformedOrderItem[], analytics: AnalyticsResults): string => {
         let csvContent = "";
 
+        // Rest of the function remains the same...
+        // Note: The analytics parameter is now properly typed with AnalyticsResults
+        
         // Detailed Orders Section
         csvContent += "DETAILED ORDERS\n";
         const headers = [
@@ -113,27 +157,28 @@ export function Report({ data }: { data: DateRange | undefined }) {
         // Ice Cream Analysis Section
         csvContent += "\n\nICE CREAM ANALYSIS (Sorted by Revenue)\n";
         csvContent += "Ice Cream Name,Category,Quantity Sold,Total Revenue\n";
-        csvContent += analytics.iceCream.map((item: any) =>
+        csvContent += analytics.iceCream.map((item) =>
             `"${item.name}","${item.category}",${item.quantity},${item.revenue.toFixed(2)}`
         ).join("\n");
 
         // Addons Analysis Section
         csvContent += "\n\nADDONS ANALYSIS (Sorted by Quantity)\n";
         csvContent += "Addon Name,Quantity Sold,Total Revenue\n";
-        csvContent += analytics.addons.map((item: any) =>
+        csvContent += analytics.addons.map((item) =>
             `"${item.name}",${item.quantity},${item.revenue.toFixed(2)}`
         ).join("\n");
 
         // Category Analysis Section
         csvContent += "\n\nCATEGORY ANALYSIS (Sorted by Revenue)\n";
         csvContent += "Category,Total Quantity,Total Revenue\n";
-        csvContent += analytics.categories.map((item: any) =>
+        csvContent += analytics.categories.map((item) =>
             `"${item.name}",${item.quantity},${item.revenue.toFixed(2)}`
         ).join("\n");
 
         return csvContent;
     };
 
+    // Rest of the component remains the same...
     const downloadCSV = (csvContent: string, fileName: string) => {
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");

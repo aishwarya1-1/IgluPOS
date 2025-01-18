@@ -31,7 +31,6 @@ const CategoryManagement = () => {
   const [pendingAction, setPendingAction] = useState<{
     type: 'add' | 'edit' | 'updateEmail';
     id?: number;
-    data?: any;
   } | null>(null);
 
   useEffect(() => {
@@ -215,8 +214,8 @@ const CategoryManagement = () => {
 
     }
   }
-  const initiateAction = (type: 'add' | 'edit' | 'updateEmail', id?: number, data?: any) => {
-    setPendingAction({ type, id, data });
+  const initiateAction = (type: 'add' | 'edit' | 'updateEmail', id?: number) => {
+    setPendingAction({ type, id });
     setIsPasswordModalOpen(true);
   };
 

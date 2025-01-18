@@ -44,7 +44,7 @@ export function ComponentBar({ data }: { data: SalesDataEntry[] }) {
         totalSales: data.reduce((acc, curr) => acc + curr.totalSales, 0),
         totalQuantity: data.reduce((acc, curr) => acc + curr.totalQuantity, 0),
     }),
-    []
+    [data]
   )
 
   return (
