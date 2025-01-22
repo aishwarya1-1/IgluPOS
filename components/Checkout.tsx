@@ -263,6 +263,7 @@ useEffect(() => {
 
   handleKotAction();
   console.log('kot',kotActionState)
+  console.log('Checkout Rendered')
 }, [kotAction]);
 
 // useEffect for handling printing based on state.message
