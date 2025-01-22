@@ -14,7 +14,9 @@ import { CartItem } from "@/context/CartContext";
 import bcrypt from "bcryptjs";
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  log: ["query", "info", "warn", "error"],
+});
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -508,25 +510,32 @@ export async function createBill(
 
   try {
     await prisma.$transaction(async (prisma) => {
-      if (!kotActionState) {
-        if (userId) {
-          kotSave = await updateKOTCounter(userId); // Execute updateKOTCounter
-        }
+      if (!kotActionState && userId) {
+        // Using the properly typed version with billUpdate true
+        const result = await updateKOTCounter(userId, true);
+        kotSave = result.kotCounter;
+        userOrderId = result.orderCounter ?? null;
+      } else {
+        const userOrderCounter = await prisma.userOrderCounter.update({
+          where: { loginId: user },
+          data: {
+            counter: { increment: 1 }, // Increment the counter by 1
+          },
+          select: {
+            counter: true, // Retrieve the updated counter value
+          },
+        });
+        userOrderId = userOrderCounter.counter;
       }
-      const userOrderCounter = await prisma.userOrderCounter.update({
-        where: { loginId: user },
-        data: {
-          counter: { increment: 1 }, // Increment the counter by 1
-        },
-        select: {
-          counter: true, // Retrieve the updated counter value
-        },
-      });
+
+      if (userOrderId === null) {
+        throw new Error("Failed to generate order ID");
+      }
 
       // Create the new order
       const newOrder = await prisma.order.create({
         data: {
-          userOrderId: userOrderCounter.counter,
+          userOrderId,
           modeOfPayment,
           orderType,
           totalCost: total,
@@ -862,7 +871,33 @@ export async function getTodaySalesGroupedByPayment(
   }
 }
 //kot order creation
-export async function updateKOTCounter(userId: string) {
+interface UpdateData {
+  KOTCounter: number | { increment: number };
+  lastUpdated: Date;
+  counter?: { increment: number };
+}
+
+interface CounterResponse {
+  kotCounter: number;
+  orderCounter?: number;
+}
+
+// Function overloads to specify return types based on billUpdate parameter
+export function updateKOTCounter(userId: string): Promise<number>;
+export function updateKOTCounter(
+  userId: string,
+  billUpdate: false
+): Promise<number>;
+export function updateKOTCounter(
+  userId: string,
+  billUpdate: true
+): Promise<CounterResponse>;
+
+// Implementation
+export async function updateKOTCounter(
+  userId: string,
+  billUpdate: boolean = false
+): Promise<number | CounterResponse> {
   const today = new Date();
   today.setHours(0, 0, 0, 0); // Reset to start of the day
 
@@ -876,31 +911,61 @@ export async function updateKOTCounter(userId: string) {
     !userCounter.lastUpdated ||
     userCounter.lastUpdated < today
   ) {
-    // Reset counter to 1 for a new day
+    // Reset KOT counter to 1 for a new day
+    const updateData: UpdateData = {
+      KOTCounter: 1,
+      lastUpdated: new Date(),
+    };
+
+    // If billUpdate is true, also increment the counter
+    if (billUpdate) {
+      updateData.counter = { increment: 1 };
+    }
+
     const updatedCounter = await prisma.userOrderCounter.update({
       where: { loginId: parseInt(userId) },
-      data: {
-        KOTCounter: 1,
-        lastUpdated: new Date(),
+      data: updateData,
+      select: {
+        KOTCounter: true,
+        ...(billUpdate && { counter: true }),
       },
-      select: { KOTCounter: true },
     });
-    return updatedCounter.KOTCounter;
+
+    return billUpdate
+      ? {
+          kotCounter: updatedCounter.KOTCounter,
+          orderCounter: updatedCounter.counter,
+        }
+      : updatedCounter.KOTCounter;
   } else {
-    // Increment the existing counter
+    // Increment the existing KOT counter
+    const updateData: UpdateData = {
+      KOTCounter: { increment: 1 },
+      lastUpdated: new Date(),
+    };
+
+    // If billUpdate is true, also increment the counter
+    if (billUpdate) {
+      updateData.counter = { increment: 1 };
+    }
+
     const updatedCounter = await prisma.userOrderCounter.update({
       where: { loginId: parseInt(userId) },
-      data: {
-        KOTCounter: { increment: 1 },
-        lastUpdated: new Date(),
+      data: updateData,
+      select: {
+        KOTCounter: true,
+        ...(billUpdate && { counter: true }),
       },
-      select: { KOTCounter: true },
     });
-    console.log("updatedCounter", updatedCounter);
-    return updatedCounter.KOTCounter;
+
+    return billUpdate
+      ? {
+          kotCounter: updatedCounter.KOTCounter,
+          orderCounter: updatedCounter.counter,
+        }
+      : updatedCounter.KOTCounter;
   }
 }
-
 export async function createKOTBill(
   cart: CartItem[][],
   totalCost: number,
