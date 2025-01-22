@@ -898,6 +898,7 @@ export async function updateKOTCounter(
   userId: string,
   billUpdate: boolean = false
 ): Promise<number | CounterResponse> {
+  console.log("executing from actions");
   const today = new Date();
   today.setHours(0, 0, 0, 0); // Reset to start of the day
 
