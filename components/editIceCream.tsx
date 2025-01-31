@@ -45,7 +45,7 @@ const EditIceCreamForm =({ initialData }: { initialData: CreateAddon | null}) =>
       e.preventDefault();
       setIsPasswordModalOpen(true);
     };
-    const { data: categoriesData, error } = useQuery({
+    const { data: categoriesData } = useQuery({
       queryKey: ['categories'],
       queryFn: fetchCategories,
       staleTime: 1000 * 60 * 60 * 12, // 12 hours

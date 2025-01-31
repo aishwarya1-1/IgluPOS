@@ -95,7 +95,7 @@ const EditAddonForm = ({ initialData }: { initialData: CreateAddon | null }) => 
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to check KOT status. Please try again.",
