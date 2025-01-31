@@ -1,80 +1,107 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState} from 'react';
 import { Pen, Plus, Trash2, X, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCategories, addCategory, updateCategory, deleteCategory, getEmail, updateEmail, getAdonsData, deleteAddonById, searchKOT } from '@/app/lib/actions';
+import { getCategories, addCategory, updateCategory, deleteCategory, getEmail, updateEmail, getAdonsData, deleteAddonById } from '@/app/lib/actions';
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from '@/context/UserContext';
-import { CreateAddon } from '@/app/validation_schemas';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { searchKOTFromCache } from '@/app/lib/utils';
+import { useKOTData } from '@/hooks/useKOTData';
+
+const fetchCategories = async () => {
+  const result = await getCategories()
+  // Ensure we return a plain object
+  return {
+    ...result,
+    data: result.data.map(item => ({ ...item }))
+  }
+}
+
+const fetchAddons = async () => {
+  const result = await getAdonsData()
+  // Ensure we return a plain object
+  return {
+    ...result,
+    data: result.data.map(item => ({ ...item }))
+  }
+}
+
+const fetchEmail = async (userId: string ) => {
+  const result = await getEmail(userId);
+  if (!result) {
+    throw new Error('Failed to fetch email');
+  }
+  return result;
+};
 
 const CategoryManagement = () => {
   const { userId } = useUser();
   const { toast } = useToast();
-  const [categories, setCategories] = useState<{id:number,name:string}[]>([]);
+  const queryClient = useQueryClient();
+
+  // const [categories, setCategories] = useState<{id:number,name:string}[]>([]);
   const [activeTab, setActiveTab] = useState('Topping');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [newCategory, setNewCategory] = useState<string>('');
   const [editingCategory, setEditingCategory] = useState<{id:number,name:string} | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentEmail, setCurrentEmail] = useState('');
+  // const [isLoading, setIsLoading] = useState(false);
+  // const [currentEmail, setCurrentEmail] = useState('');
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [newEmail, setNewEmail] = useState('');
-  const [addons, setAddons] = useState<CreateAddon[]>([])
-  const hasFetched = useRef(false);
+  // const [addons, setAddons] = useState<CreateAddon[]>([])
+
   const [pendingAction, setPendingAction] = useState<{
     type: 'add' | 'edit' | 'updateEmail';
     id?: number;
   } | null>(null);
 
-  useEffect(() => {
-    if (!hasFetched.current) {
-      fetchCategories();
-      fetchCurrentEmail();
-      fetchAddons();
-      hasFetched.current = true;
-    }
-  }, []);
+  const { 
+    data: categoriesData, 
+    isLoading: categoriesLoading 
+  } = useQuery({
+    queryKey: ['categories'],
+    queryFn: fetchCategories,
+    staleTime: 1000 * 60 * 60 * 12, // 12 hours
+    gcTime: 1000 * 60 * 60 * 24,   // 24 hours
+  });
 
-  const fetchCategories = async () => {
-    console.log('fetching categories');
-    const result = await getCategories();
-    if (result.success) {
-      setCategories(result.data);
-    } else {
-      toast({
-        title: "Error",
-        description: "Failed to fetch categories",
-        variant: "destructive",
-      });
-    }
-  };
+  const { 
+    data: addonsData, 
+    isLoading: addonsLoading 
+  } = useQuery({
+    queryKey: ['addons'],
+    queryFn: fetchAddons,
+    staleTime: 1000 * 60 * 60 * 12, // 12 hours
+    gcTime: 1000 * 60 * 60 * 24,   // 24 hours
+  });
 
-    const fetchAddons = async () => {
-      console.log('fetching addons');
-      const result = await getAdonsData()
-      if (result?.success) {
-        setAddons(result.data)
+  const { 
+    data: currentEmail = '', 
+    isLoading: emailLoading 
+  } = useQuery({
+    queryKey: ['email', userId],
+    queryFn: () => {
+      if (!userId) {
+        return Promise.reject(new Error('User ID is required'));
       }
-    }
- 
-  const fetchCurrentEmail = async () => {
-    console.log('fetching email');
-    const result = await getEmail(userId);
-    if (result) {
-      setCurrentEmail(result);
-      setNewEmail(result);
-    } else {
-      setCurrentEmail('');
+      return fetchEmail(userId);
+    },
+    staleTime: 1000 * 60 * 60 * 24, // 24 hours
+    gcTime: 1000 * 60 * 60 * 48,   // 48 hours
+  });
 
-    }
-  };
+  const addons = addonsData?.data || []
+  const categories = categoriesData?.data || []
+
+  const isLoading = categoriesLoading || addonsLoading || emailLoading;
   const verifyPassword = (adminAction: () => Promise<void>) => {
     const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
     if (password === adminPassword) {
@@ -90,14 +117,14 @@ const CategoryManagement = () => {
     }
   };
   const handleUpdateEmail = async () => {
-    setIsLoading(true);
+
     const result = await updateEmail(userId,newEmail);
-    setIsLoading(false);
+
 
     if (result?.success) {
-      setCurrentEmail(newEmail);
+      queryClient.invalidateQueries({ queryKey: ['email'] });
       setIsEditingEmail(false);
-      fetchCurrentEmail();
+
       toast({
         title: "Success",
         description: "Email updated successfully",
@@ -112,14 +139,15 @@ const CategoryManagement = () => {
   };
   const handleAddCategory = async () => {
     console.log('adding category');
-    setIsLoading(true);
+
     const result = await addCategory(newCategory);
-    setIsLoading(false);
+
 
     if (result.success) {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
       setIsAddModalOpen(false);
       setNewCategory('');
-      fetchCategories();
+
       toast({
         title: "Success",
         description: "Category added successfully",
@@ -136,13 +164,14 @@ const CategoryManagement = () => {
   const handleEditCategory = async (id: number) => {
     console.log('editing category');
     if (!editingCategory) return;
-    setIsLoading(true);
+
     const result = await updateCategory(id, editingCategory.name);
-    setIsLoading(false);
+
 
     if (result.success) {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
       setEditingCategory(null);
-      fetchCategories();
+
       toast({
         title: "Success",
         description: "Category updated successfully",
@@ -160,12 +189,12 @@ const CategoryManagement = () => {
     console.log('deleting category');
     if (!window.confirm('Are you sure you want to delete this category?')) return;
     console.log('deleting category');
-    setIsLoading(true);
+
     const result = await deleteCategory(id);
-    setIsLoading(false);
+  
 
     if (result.success) {
-      fetchCategories();
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
       toast({
         title: "Success",
         description: "Category deleted successfully",
@@ -178,6 +207,7 @@ const CategoryManagement = () => {
       });
     }
   };
+  const { data: kotOrders} = useKOTData(userId??'');
   const handleDelete = async (id: number) => {
     const confirmDelete = confirm('Are you sure you want to delete this addon?');
     
@@ -186,18 +216,35 @@ const CategoryManagement = () => {
         if (!userId) {
           throw new Error("User ID is required.");
         }
-        const iceCreamInKOT = await searchKOT(id, userId, "addon");
-        if (iceCreamInKOT) {
+        
+ 
+        if (kotOrders === undefined) {
+          console.log("something went wrong");
           toast({
             title: "Error",
-            description: "Item in KOT. ",
+            description: "Failed to check KOT status. Please try again.",
             variant: "destructive",
           });
           return;
         }
+        let shouldDelete = kotOrders.data.length === 0;
+
+  if (!shouldDelete) {
+    const iceCreamInKOT = await searchKOTFromCache(id, userId, "addon", kotOrders);
+    shouldDelete = !iceCreamInKOT;
+  }
+
+  if (!shouldDelete) {
+    toast({
+      title: "Error",
+      description: "Item in KOT.",
+      variant: "destructive",
+    });
+    return;
+  }
         const result = await deleteAddonById(id);
         if(result.success){
-          setAddons(prevAddons => prevAddons.filter(addon => addon.id !== id));
+          queryClient.invalidateQueries({ queryKey: ['addons'] });
           toast({
             title: "Success",
             description: "Addon deleted successfully",

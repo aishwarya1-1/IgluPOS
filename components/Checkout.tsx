@@ -3,15 +3,17 @@
 import { useFormState } from 'react-dom';
 import { CartItem, useCart } from '../context/CartContext';
 import { useUser } from '@/context/UserContext';
-import { appendKOTorder, BillState, createBill, createKOTBill, deleteKOTorder, editKOTorder} from '@/app/lib/actions';
+import { appendKOTorder, BillState, createBill, createKOTBill, editKOTorder} from '@/app/lib/actions';
 import { useEffect, useState } from 'react';
 import Cart from './Cart';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from "@/hooks/use-toast"
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: number; kotAction?: string ;cartItems?:string;}) {
   const { cart, clearCart, totalCost, populateCart } = useCart();
   const { userId } = useUser();
+  const queryClient = useQueryClient();
   const { toast } = useToast()
   const [kotActionState, setKotActionState] = useState<string | undefined>();
 
@@ -19,7 +21,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
     const currentKotActionState = kotActionState;
   
 
-    return createBill(cart, totalCost, userId, prevState, formData,currentKotActionState);
+    return createBill(cart, totalCost, userId, prevState, formData,currentKotActionState,kotid);
     
   };
   const initialState: BillState = { message: '', errors: {} };
@@ -263,7 +265,7 @@ useEffect(() => {
 
   handleKotAction();
   console.log('kot',kotActionState)
-  console.log('Checkout Rendered')
+
 }, [kotAction]);
 
 // useEffect for handling printing based on state.message
@@ -274,7 +276,7 @@ useEffect(() => {
     if (state.message.startsWith('Failed to add')) {
       toast({
         title: "Error",
-        description: 'Failed to Add Bill',
+        description: state.message,
         variant: "destructive",
       });
       return
@@ -294,8 +296,17 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
     setKey((prevKey) => prevKey + 1);
 
     if (kotActionState === 'checkout') {
+      console.log("Before printing customer bill...");
       await printCustomerBill(userOrderId);
-      await deleteKOTorder(kotid,userId);
+     console.log("KOT order deleted, invalidating cache...");
+        queryClient.invalidateQueries({ queryKey: ["kot-data", userId] });
+      // const result = await deleteKOTorder(kotid,userId);
+      // if (result.success) {
+      //   console.log("KOT order deleted, invalidating cache...");
+      //   queryClient.invalidateQueries({ queryKey: ["kot-data", userId] });
+      // } else {
+      //   console.log("Failed to delete KOT, skipping cache invalidation.");
+      // }
     } else {
       await printCustomerBill(userOrderId);
 
@@ -334,6 +345,15 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
         if(kotActionState==='append'){
           try{
           const appendRes=await appendKOTorder(kotid,cart,totalCost,userId)
+          if(!appendRes.kotNum){
+            toast({
+              title: "Error",
+              description: appendRes.message,
+              variant: "destructive",
+            });
+          }
+          else{
+          queryClient.invalidateQueries({ queryKey: ['kot-data', userId]});
           printKitchenOrder(appendRes.kotNum);
         clearCart();
         toast({
@@ -342,6 +362,7 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
         });
    
         router.push('/billing');
+      }
           }catch(error){
             console.log(error)
             toast({
@@ -354,6 +375,15 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
         else if(kotActionState==='edit'){
           try{
           const editRes=await editKOTorder(kotid,cart,totalCost,userId)
+          if(!editRes.kotNum){
+            toast({
+              title: "Error",
+              description: editRes.message,
+              variant: "destructive",
+            });
+          }
+          else{
+          queryClient.invalidateQueries({ queryKey: ['kot-data', userId] });
           printKitchenOrder(editRes.kotNum);
           clearCart();
           toast({
@@ -361,6 +391,7 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
             description: 'Last KOT order Edited',
           });
           router.push('/billing');
+        }
           }catch(error){
             console.log(error)
             toast({
@@ -373,7 +404,7 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
       } else {
         const response = await createKOTBill([cart], totalCost, userId, customerName);
       if (response?.message === "KOT Bill Added") {
-    
+        queryClient.invalidateQueries({ queryKey: ['kot-data', userId] });
         printKitchenOrder(response.kotNum);
         clearCart();
         toast({

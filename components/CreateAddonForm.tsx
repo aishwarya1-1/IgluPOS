@@ -4,11 +4,12 @@ import {  useFormState } from 'react-dom'
 import { createAddon } from '@/app/lib/actions';
 import { AddonCategory } from '@prisma/client';
 import { AddonState } from '@/app/lib/actions';
+import { useQueryClient } from '@tanstack/react-query';
 
 const CreateAddonForm = () => {
   const initialState: AddonState = { message: "", errors: {} };
   const [state, formAction] = useFormState(createAddon, initialState);
-
+  const queryClient = useQueryClient()
   const [key, setKey] = useState(0);
 
   useEffect(() => {
@@ -16,6 +17,7 @@ const CreateAddonForm = () => {
     if (state.message === "Added successfully") {
       console.log("Resetting form...");
       setKey(prevKey => prevKey + 1);
+      queryClient.invalidateQueries({ queryKey: ['addons'] });
     }
   }, [state]);
 

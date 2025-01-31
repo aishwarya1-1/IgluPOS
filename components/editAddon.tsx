@@ -10,9 +10,15 @@ import { Button } from "@/components/ui/button";
 import { useState, useRef, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import { useQueryClient } from '@tanstack/react-query';
+import { searchKOTFromCache } from '@/app/lib/utils';
+import { useKOTData } from '@/hooks/useKOTData';
+import React from 'react';
+
 
 const EditAddonForm = ({ initialData }: { initialData: CreateAddon | null }) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient()
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -35,28 +41,71 @@ const EditAddonForm = ({ initialData }: { initialData: CreateAddon | null }) => 
     e.preventDefault();
     setIsPasswordModalOpen(true);
   };
-
+  const { data: kotOrders} = useKOTData(userId);
   const verifyAndSubmit = async () => {
     setIsLoading(true);
     const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
     
-    if (password === adminPassword) {
-      if (formRef.current) {
-        const formData = new FormData(formRef.current);
-        await formAction(formData);
+    try {
+      if (password === adminPassword) {
+        console.log('orders')
+        // Check if addon is in KOT before proceeding
+      
+ console.log('orders',kotOrders)
+        if (kotOrders === undefined) {
+          console.log("something went wrong");
+          toast({
+            title: "Error",
+            description: "Failed to check KOT status. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+        let shouldEdit = kotOrders.data.length === 0;
+
+  if (!shouldEdit) {
+    const iceCreamInKOT = await searchKOTFromCache(id, userId, "addon", kotOrders);
+    shouldEdit = !iceCreamInKOT;
+  }
+
+  if (!shouldEdit) {
+    toast({
+      title: "Error",
+      description: "Item in KOT.",
+      variant: "destructive",
+    });
+    setIsPasswordModalOpen(false);
+    setPassword('');
+    return;
+  }
+   
+
+        // If not in KOT, proceed with update
+        if (formRef.current) {
+          const formData = new FormData(formRef.current);
+          queryClient.invalidateQueries({ queryKey: ['addons'] });
+          await formAction(formData);
+        }
+        setIsPasswordModalOpen(false);
+        setPassword('');
+      } else {
+        toast({
+          title: "Error",
+          description: "Incorrect password",
+          variant: "destructive",
+        });
       }
-      setIsPasswordModalOpen(false);
-      setPassword('');
-  
-    } else {
+    } catch (error) {
       toast({
         title: "Error",
-        description: "Incorrect password",
+        description: "Failed to check KOT status. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
+  
 useEffect(() => {
   if(state.message){
   if (state.message === "Added successfully") {

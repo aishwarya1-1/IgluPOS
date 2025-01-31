@@ -27,18 +27,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { cancelBill, deleteKOTorder, getKOTData } from '@/app/lib/actions';
+import { cancelBill, deleteKOTorder } from '@/app/lib/actions';
 import { JsonValue } from '@prisma/client/runtime/library';
 import { useUser } from '@/context/UserContext';
 import { useRouter } from 'next/navigation';
+import {  useQueryClient } from '@tanstack/react-query';
+import { useKOTData } from '@/hooks/useKOTData';
 
-interface KOTOrderData {
-  id: number,
-  kotName: string;
-  cartItems: JsonValue;
-  total: number;
-  lastUpdatedDate: Date;
-}
+
 
 interface PasswordDialogProps {
   isOpen: boolean;
@@ -55,6 +51,7 @@ interface BillCancelDialogProps {
 
 const BillCancelDialog = ({ isOpen, onClose }: BillCancelDialogProps) => {
   const { toast } = useToast()
+ 
   const [billNumber, setBillNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const { userId } = useUser();
@@ -211,8 +208,8 @@ const KOTTablePage = () => {
   const router = useRouter();
   const { userId } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
-  const [kotData, setKotData] = useState<KOTOrderData[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const queryClient = useQueryClient();
+
   const [error, setError] = useState<string | null>(null);
   const [showBillCancelDialog, setShowBillCancelDialog] = useState(false);
   const [passwordDialog, setPasswordDialog] = useState<{
@@ -294,11 +291,14 @@ const KOTTablePage = () => {
       router.push(`/billing?kotid=${passwordDialog.kotId}&cartItems=${encodedCartItems}&kotAction=edit`);
     } else if (passwordDialog.action === 'delete') {
       try {
-        await deleteKOTorder(passwordDialog.kotId,userId);
-        const data = await getKOTData(userId);
-        if (data.success) {
-          setKotData(data.data);
+        const res=await deleteKOTorder(passwordDialog.kotId,userId);
+        if(res.success){
+        queryClient.invalidateQueries({ queryKey: ['kot-data', userId] });
         }
+        else{
+          setError('Failed to delete KOT');
+        }
+        
       } catch (err) {
         console.error('Error deleting KOT:', err);
         setError('Failed to delete KOT');
@@ -306,25 +306,10 @@ const KOTTablePage = () => {
     }
   };
 
-  React.useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        const data = await getKOTData(userId);
-        if (data.success) {
-          setKotData(data.data);
-        } else {
-          setError('Failed to fetch KOT data');
-        }
-      } catch (err) {
-        setError('An error occurred while fetching data');
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchData();
-  }, [userId]);
+  
+  const { data: kotDataFetch, isLoading } = useKOTData(userId?? '');
+  
+  const kotData = kotDataFetch?.data || []
 
   if (isLoading) {
     return (

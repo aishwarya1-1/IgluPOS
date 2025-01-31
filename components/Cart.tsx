@@ -1,16 +1,23 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState} from 'react'
 import { useCart } from '../context/CartContext'
-
+import {useQuery} from '@tanstack/react-query'
 import { TrashIcon, PlusIcon, XMarkIcon } from '@heroicons/react/20/solid'
 
 import {  getAdonsData} from '../app/lib/actions'
 
 
-import { CreateAddon } from '@/app/validation_schemas'
 
 
+const fetchAddons = async () => {
+  const result = await getAdonsData()
+  // Ensure we return a plain object
+  return {
+    ...result,
+    data: result.data.map(item => ({ ...item }))
+  }
+}
 
 export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
 
@@ -18,27 +25,19 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
   const [showAddons, setShowAddons] = useState<{ [key: number]: boolean }>({})
   const [addonType, setAddonType] = useState<{ [key: number]: string | null }>({})
   const [searchQuery, setSearchQuery] = useState('')
-  const [addons, setAddons] = useState<CreateAddon[]>([])
-  const hasFetched = useRef(false);
-  // Fetch addons on component mount
-  useEffect(() => {
- 
+  // const [addons, setAddons] = useState<CreateAddon[]>([])
 
-    const fetchAddons = async () => {
-      const result = await getAdonsData()
-      if (result?.success) {
-        setAddons(result.data)
-      }
-    } 
-    if (!hasFetched.current) {
-      fetchAddons();
-      hasFetched.current = true;
-    }
- 
-  }, [])
+  const { 
+    data: addonsData,
 
+  } = useQuery({
+    queryKey: ['addons'],
+    queryFn: fetchAddons,
+    staleTime: 1000 * 60 * 60 * 12, // 12 hours
+    gcTime: 1000 * 60 * 60 * 24
+  })
 
-
+  const addons = addonsData?.data || []
   const handleAddonsToggle = (itemId: number) => {
     setShowAddons((prev) => ({
       ...prev,

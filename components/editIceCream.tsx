@@ -10,7 +10,18 @@ import { useRef, useState } from 'react';
 import { useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { searchKOTFromCache } from '@/app/lib/utils';
+import { useKOTData } from '@/hooks/useKOTData';
+import React from 'react';
 
+const fetchCategories = async () => {
+  const result = await getCategories()
+  return {
+    ...result,
+    data: result.data.map(category => ({ ...category }))
+  }
+}
 const EditIceCreamForm =({ initialData }: { initialData: CreateAddon | null}) => {
   const { userId } = useUser();
   const { toast } = useToast();
@@ -18,7 +29,8 @@ const EditIceCreamForm =({ initialData }: { initialData: CreateAddon | null}) =>
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const [categories, setCategories] = useState<{id:number,name:string}[]>([]);
+  const queryClient = useQueryClient()
+
   const [selectedCategory, setSelectedCategory] = useState("");
     const initialState: State = { message: "", errors: {} };
     const id = initialData?.id ?? 0;
@@ -33,14 +45,76 @@ const EditIceCreamForm =({ initialData }: { initialData: CreateAddon | null}) =>
       e.preventDefault();
       setIsPasswordModalOpen(true);
     };
+    const { data: categoriesData, error } = useQuery({
+      queryKey: ['categories'],
+      queryFn: fetchCategories,
+      staleTime: 1000 * 60 * 60 * 12, // 12 hours
+      gcTime: 1000 * 60 * 60 * 24
+    })
 
+  const categories = categoriesData?.data || []
+  useEffect(() => {
+    const fetchInitialCategory = async () => {
+      try {
+
+
+        if (initialData?.category) {
+          const matchingCategory = categories.find(
+            (cat) => cat.name === initialData.category
+          );
+          console.log("Matching category:", matchingCategory);
+
+          if (matchingCategory) {
+            setSelectedCategory(matchingCategory.id.toString());
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching categories:", err);
+      }
+    };
+
+    fetchInitialCategory();
+  }, [initialData]);
+  const { data: kotOrders} = useKOTData(userId);
   const verifyAndSubmit = async () => {
     setIsLoading(true);
     const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
     
     if (password === adminPassword) {
+      
+
+     
+ 
+        if (kotOrders === undefined) {
+          console.log("something went wrong");
+          toast({
+            title: "Error",
+            description: "Failed to check KOT status. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+        let shouldEdit = kotOrders.data.length === 0;
+
+  if (!shouldEdit) {
+    const iceCreamInKOT = await searchKOTFromCache(id, userId, "icecream", kotOrders);
+    shouldEdit = !iceCreamInKOT;
+  }
+
+      
+      if (!shouldEdit) {
+        toast({
+          title: "Error",
+          description: "Item in KOT. Cannot edit at this time.",
+          variant: "destructive",
+        });
+        setIsPasswordModalOpen(false);
+        setPassword('');
+        return;
+      }
       if (formRef.current) {
         const formData = new FormData(formRef.current);
+        queryClient.invalidateQueries({ queryKey: ['iceCreams'] })
         await formAction(formData);
       }
       setIsPasswordModalOpen(false);
@@ -57,33 +131,9 @@ const EditIceCreamForm =({ initialData }: { initialData: CreateAddon | null}) =>
   };
 
     useEffect(() => {
-      const fetchCategories = async () => {
-        try {
-          const result = await getCategories();
-          console.log("Fetched categories:", result.data);
-          setCategories(result.data);
-  
-          if (initialData?.category) {
-            const matchingCategory = result.data.find(
-              (cat) => cat.name === initialData.category
-            );
-            console.log("Matching category:", matchingCategory);
-  
-            if (matchingCategory) {
-              setSelectedCategory(matchingCategory.id.toString());
-            }
-          }
-        } catch (err) {
-          console.error("Error fetching categories:", err);
-        }
-      };
-  
-      fetchCategories();
-    }, [initialData]);
-
-    useEffect(() => {
       if(state.message){
       if (state.message === "Added successfully") {
+        
         toast({
           title: "Success",
           description: "Changes saved successfully",

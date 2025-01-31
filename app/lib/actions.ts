@@ -5,8 +5,8 @@ import {
   createOrderSchema,
   dateRangeSchema,
   CreateIcecream,
-  CartItemSchemaType,
   createAddonSchema,
+  CreateAddon,
 } from "../validation_schemas";
 import { startOfDay, endOfDay, eachDayOfInterval, format } from "date-fns";
 import { AddonCategory, PrismaClient } from "@prisma/client";
@@ -14,10 +14,8 @@ import { CartItem } from "@/context/CartContext";
 import bcrypt from "bcryptjs";
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
-const prisma = new PrismaClient({
-  log: ["query", "info", "warn", "error"],
-});
-import { revalidatePath } from "next/cache";
+const prisma = new PrismaClient();
+
 import { redirect } from "next/navigation";
 
 export type State = {
@@ -106,7 +104,7 @@ export async function createIcecream(prevState: State, formData: FormData) {
         cost,
       },
     });
-    revalidatePath("/billing");
+
     return {
       message: "Added successfully",
       errors: {},
@@ -121,51 +119,6 @@ export async function createIcecream(prevState: State, formData: FormData) {
   }
 }
 
-//serach kot
-export async function searchKOT(id: number, userId: string, action: string) {
-  const kotOrders = await getKOTData(userId);
-  if (kotOrders.data.length === 0) return false;
-
-  const iceCreamIdToCheck = id;
-
-  // Iterate through orders
-  for (const order of kotOrders.data) {
-    const cartItemsString = order.cartItems; // Get the cartItems value
-
-    // Check if cartItemsString is a string and not null
-    if (typeof cartItemsString !== "string") {
-      console.error("cartItems is not a valid JSON string:", cartItemsString);
-      continue; // Skip this order and move to the next one
-    }
-
-    const cartItems: CartItemSchemaType[][] = JSON.parse(cartItemsString); // Parse the cartItems
-
-    // Iterate through each sub-array in cartItems
-    for (const subArray of cartItems) {
-      // Check if the action is for ice cream
-      if (action === "icecream") {
-        // Check if any item in the sub-array has a matching ID for ice cream
-        if (subArray.some((item) => item.id === iceCreamIdToCheck)) {
-          return true; // Return true immediately when a match is found
-        }
-      }
-      // Check if the action is for an addon
-      else if (action === "addon") {
-        // Check if any item in the sub-array has a matching addon ID
-        if (
-          subArray.some((item) =>
-            item.addons?.some((addon) => addon.addonId === iceCreamIdToCheck)
-          )
-        ) {
-          return true; // Return true immediately when a match is found
-        }
-      }
-    }
-  }
-
-  // If no matches are found, return false
-  return false;
-}
 //edit
 
 export async function UpdateIcecream(
@@ -174,13 +127,6 @@ export async function UpdateIcecream(
   prevState: State,
   formData: FormData
 ) {
-  const iceCreamInKOT = await searchKOT(id, userId, "icecream");
-  if (iceCreamInKOT) {
-    return {
-      message: "Item in KOT. Please clear the KOT before Updating.",
-      errors: {},
-    };
-  }
   const validatedFields = createIceCreamSchema.safeParse({
     name: formData.get("name"),
     categoryId: formData.get("categoryId"),
@@ -205,7 +151,6 @@ export async function UpdateIcecream(
         cost: cost, // Update the cost
       },
     });
-    revalidatePath("/billing");
   } catch {
     return {
       message: "Failed to Update Ice Cream.",
@@ -240,7 +185,7 @@ export async function createAddon(prevState: AddonState, formData: FormData) {
         price: price,
       },
     });
-    revalidatePath("/billing");
+
     return {
       message: "Added successfully",
       errors: {},
@@ -261,13 +206,13 @@ export async function UpdateAddon(
   prevState: AddonState,
   formData: FormData
 ) {
-  const iceCreamInKOT = await searchKOT(id, userId, "addon");
-  if (iceCreamInKOT) {
-    return {
-      message: "Item in KOT. Please clear the KOT before Updating.",
-      errors: {},
-    };
-  }
+  // const iceCreamInKOT = await searchKOT(id, userId, "addon");
+  // if (iceCreamInKOT) {
+  //   return {
+  //     message: "Item in KOT. Please clear the KOT before Updating.",
+  //     errors: {},
+  //   };
+  // }
   const validatedFields = createAddonSchema.safeParse({
     name: formData.get("name"),
     category: formData.get("category"),
@@ -292,7 +237,6 @@ export async function UpdateAddon(
         price: price, // Update the cost
       },
     });
-    revalidatePath("/billing/settings");
   } catch {
     return {
       message: "Failed to Update Addon.",
@@ -308,6 +252,7 @@ export async function UpdateAddon(
 export async function getIceCreamData() {
   try {
     // await delay(500);
+    console.log("icecreams fetched");
     const iceCreams: CreateIcecream[] = await prisma.iceCream.findMany({
       select: {
         id: true,
@@ -336,7 +281,8 @@ export async function getIceCreamData() {
 }
 export async function getAdonsData() {
   try {
-    const addons = await prisma.addon.findMany({
+    console.log("addons fetched");
+    const addons: CreateAddon[] = await prisma.addon.findMany({
       select: {
         id: true,
         name: true,
@@ -367,7 +313,6 @@ export async function deleteIceCreamById(id: number) {
       },
     });
 
-    revalidatePath("/billing");
     return { success: true };
   } catch (error) {
     console.error(`Failed to delete ice cream with ID ${id}:`, error);
@@ -375,7 +320,6 @@ export async function deleteIceCreamById(id: number) {
       success: false,
     };
   }
-  redirect("/billing");
 }
 //delete addon by id
 export async function deleteAddonById(id: number) {
@@ -386,7 +330,7 @@ export async function deleteAddonById(id: number) {
         id: id, // Specify the id of the ice cream you want to delete
       },
     });
-    revalidatePath("/billing/settings");
+
     return { success: true };
   } catch (error) {
     console.error(`Failed to delete addon with ID ${id}:`, error);
@@ -480,10 +424,12 @@ export async function createBill(
   userId: string | undefined,
   prevState: BillState,
   formData: FormData,
-  kotActionState: string | undefined
+  kotActionState: string | undefined,
+  kotid: number | undefined
 ) {
   let userOrderId: number | null = null;
   let kotSave: number | null = null;
+
   const validatedFields = createOrderSchema.safeParse({
     cart: cart,
     modeOfPayment: formData.get("modeOfPayment"),
@@ -509,85 +455,90 @@ export async function createBill(
   } = validatedFields.data;
 
   try {
-    await prisma.$transaction(async (prisma) => {
-      if (!kotActionState && userId) {
-        // Using the properly typed version with billUpdate true
-        const result = await updateKOTCounter(userId, true);
-        kotSave = result.kotCounter;
-        userOrderId = result.orderCounter ?? null;
-      } else {
-        const userOrderCounter = await prisma.userOrderCounter.update({
-          where: { loginId: user },
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // Handle KOT and Order Counter
+        if (!kotActionState && userId) {
+          const result = await updateKOTCounter(userId, true, tx);
+          kotSave = result.kotCounter;
+          userOrderId = result.orderCounter ?? null;
+        } else {
+          const userOrderCounter = await tx.userOrderCounter.update({
+            where: { loginId: user },
+            data: {
+              counter: { increment: 1 },
+            },
+            select: {
+              counter: true,
+            },
+          });
+          userOrderId = userOrderCounter.counter;
+        }
+
+        if (userOrderId === null) {
+          throw new Error("Failed to generate order ID");
+        }
+
+        // Create the new order using transaction context
+        const newOrder = await tx.order.create({
           data: {
-            counter: { increment: 1 }, // Increment the counter by 1
-          },
-          select: {
-            counter: true, // Retrieve the updated counter value
-          },
-        });
-        userOrderId = userOrderCounter.counter;
-      }
-
-      if (userOrderId === null) {
-        throw new Error("Failed to generate order ID");
-      }
-
-      // Create the new order
-      const newOrder = await prisma.order.create({
-        data: {
-          userOrderId,
-          modeOfPayment,
-          orderType,
-          totalCost: total,
-          userId: user,
-        },
-      });
-      userOrderId = newOrder.userOrderId;
-
-      // Create order items and their addons
-      for (const item of validatedCart) {
-        const orderItem = await prisma.orderItems.create({
-          data: {
-            orderId: newOrder.id,
-            iceCreamId: item.id,
-            quantity: item.quantity,
-            itemCost: item.cost,
+            userOrderId,
+            modeOfPayment,
+            orderType,
+            totalCost: total,
+            userId: user,
           },
         });
 
-        // Check if addons exist before creating OrderItemAddon entries
-        if (Array.isArray(item.addons)) {
-          for (const addon of item.addons) {
-            await prisma.orderItemAddon.create({
-              data: {
-                quantity: addon.addonQuantity,
-                priceAtTime: addon.addonPrice,
-                orderId: orderItem.id,
+        // Create order items and their addons using transaction context
+        for (const item of validatedCart) {
+          const orderItem = await tx.orderItems.create({
+            data: {
+              orderId: newOrder.id,
+              iceCreamId: item.id,
+              quantity: item.quantity,
+              itemCost: item.cost,
+            },
+          });
 
-                addonId: addon.addonId,
-              },
-            });
+          if (Array.isArray(item.addons)) {
+            await Promise.all(
+              item.addons.map((addon) =>
+                tx.orderItemAddon.create({
+                  data: {
+                    quantity: addon.addonQuantity,
+                    priceAtTime: addon.addonPrice,
+                    orderId: orderItem.id,
+                    addonId: addon.addonId,
+                  },
+                })
+              )
+            );
           }
         }
+        if (kotActionState && kotid) {
+          await deleteKOTorder(kotid, userId, tx);
+        }
+        return { userOrderId, kotSave };
+      },
+      {
+        maxWait: 5000, // 5 seconds maximum wait time
+        timeout: 10000, // 10 seconds timeout
       }
-    });
-
-    revalidatePath("/billing/dashboard");
+    );
 
     return {
-      message: `${userOrderId},${kotSave}`,
-
+      message: `${result.userOrderId},${result.kotSave}`,
       errors: {},
     };
   } catch (error) {
     console.log(error);
     return {
-      message: "Failed to add the bill.",
-
+      message: `Failed to add the bill.Error: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
       errors: {},
     };
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -871,38 +822,43 @@ export async function getTodaySalesGroupedByPayment(
   }
 }
 //kot order creation
-interface UpdateData {
-  KOTCounter: number | { increment: number };
-  lastUpdated: Date;
-  counter?: { increment: number };
-}
+
+type TransactionClient = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
 
 interface CounterResponse {
   kotCounter: number;
   orderCounter?: number;
 }
 
-// Function overloads to specify return types based on billUpdate parameter
-export function updateKOTCounter(userId: string): Promise<number>;
-export function updateKOTCounter(
-  userId: string,
-  billUpdate: false
-): Promise<number>;
-export function updateKOTCounter(
-  userId: string,
-  billUpdate: true
-): Promise<CounterResponse>;
+interface UpdateData {
+  KOTCounter: number | { increment: number };
+  lastUpdated: Date;
+  counter?: { increment: number };
+}
 
-// Implementation
 export async function updateKOTCounter(
   userId: string,
-  billUpdate: boolean = false
+  billUpdate: false,
+  tx: TransactionClient
+): Promise<number>;
+export async function updateKOTCounter(
+  userId: string,
+  billUpdate: true,
+  tx: TransactionClient
+): Promise<CounterResponse>;
+export async function updateKOTCounter(
+  userId: string,
+  billUpdate: boolean = false,
+  tx: TransactionClient
 ): Promise<number | CounterResponse> {
   console.log("executing from actions");
   const today = new Date();
   today.setHours(0, 0, 0, 0); // Reset to start of the day
 
-  const userCounter = await prisma.userOrderCounter.findUnique({
+  const userCounter = await tx.userOrderCounter.findUnique({
     where: { loginId: parseInt(userId) },
   });
 
@@ -923,7 +879,7 @@ export async function updateKOTCounter(
       updateData.counter = { increment: 1 };
     }
 
-    const updatedCounter = await prisma.userOrderCounter.update({
+    const updatedCounter = await tx.userOrderCounter.update({
       where: { loginId: parseInt(userId) },
       data: updateData,
       select: {
@@ -950,7 +906,7 @@ export async function updateKOTCounter(
       updateData.counter = { increment: 1 };
     }
 
-    const updatedCounter = await prisma.userOrderCounter.update({
+    const updatedCounter = await tx.userOrderCounter.update({
       where: { loginId: parseInt(userId) },
       data: updateData,
       select: {
@@ -967,6 +923,7 @@ export async function updateKOTCounter(
       : updatedCounter.KOTCounter;
   }
 }
+
 export async function createKOTBill(
   cart: CartItem[][],
   totalCost: number,
@@ -978,41 +935,47 @@ export async function createKOTBill(
   }
 
   try {
-    const updatedCounter = await updateKOTCounter(userId);
-    // Create the new order
-    const newOrder = await prisma.kOTOrder.create({
-      data: {
-        kotNumber: updatedCounter,
-        kotName: kotName,
-        total: totalCost,
-        loginId: parseInt(userId),
-        cartItems: JSON.stringify(cart),
-      },
-      select: {
-        kotNumber: true, // Retrieve the updated counter value
-      },
-    });
-    const kotNum = newOrder.kotNumber;
+    return await prisma.$transaction(
+      async (tx) => {
+        // Get updated counter within transaction using base function
+        const updatedCounter = await updateKOTCounter(userId, false, tx);
 
-    revalidatePath("/billing/kot");
+        // Create the new order within the same transaction
+        const newOrder = await tx.kOTOrder.create({
+          data: {
+            kotNumber: updatedCounter,
+            kotName: kotName,
+            total: totalCost,
+            loginId: parseInt(userId),
+            cartItems: JSON.stringify(cart),
+          },
+          select: {
+            kotNumber: true,
+          },
+        });
 
-    return {
-      message: "KOT Bill Added",
-      kotNum: kotNum,
-    };
+        return {
+          message: "KOT Bill Added",
+          kotNum: newOrder.kotNumber,
+        };
+      },
+      {
+        maxWait: 5000, // 5 seconds maximum wait time
+        timeout: 10000, // 10 seconds timeout
+      }
+    );
   } catch (error) {
-    console.log(error);
+    console.error("Error creating KOT bill:", error);
     return {
       message: "Failed to add the KOTbill.",
       kotNum: undefined,
     };
-  } finally {
-    await prisma.$disconnect();
   }
 }
 //fetchKOT orders
 
 export async function getKOTData(userId: string | undefined) {
+  console.log("kot data fetched");
   try {
     if (!userId || isNaN(parseInt(userId))) {
       throw new Error("Invalid or missing user ID");
@@ -1044,8 +1007,11 @@ export async function getKOTData(userId: string | undefined) {
 
 export async function deleteKOTorder(
   kotid: number | undefined,
-  userId: string | undefined
+  userId: string | undefined,
+  tx?: TransactionClient
 ) {
+  console.log("deleting kot");
+  const prismaClient = tx || prisma;
   if (kotid === undefined) {
     throw new Error("KOT ID is required.");
   }
@@ -1056,12 +1022,13 @@ export async function deleteKOTorder(
     return { message: "User ID is required", kotNum: undefined };
   }
   try {
-    await prisma.kOTOrder.delete({
+    await prismaClient.kOTOrder.delete({
       where: {
         loginId: parseInt(userId),
         id: kotid,
       },
     });
+    return { success: true };
   } catch {
     throw new Error("Failed to delete from KOT.");
   }
@@ -1077,58 +1044,66 @@ export async function appendKOTorder(
   if (kotid === undefined) {
     throw new Error("KOT ID is required.");
   }
-  if (typeof kotid === "string") {
-    kotid = parseInt(kotid);
-  }
   if (!userId) {
     return { message: "User ID is required", kotNum: undefined };
   }
+
   try {
-    // Retrieve the current KOTOrder
-    const existingKOTOrder = await prisma.kOTOrder.findUnique({
-      where: { loginId: parseInt(userId), id: kotid },
-      select: { cartItems: true, total: true }, // Select only the cartItems field
-    });
+    return await prisma.$transaction(
+      async (tx) => {
+        const parsedKotId = typeof kotid === "string" ? parseInt(kotid) : kotid;
 
-    if (!existingKOTOrder) {
-      throw new Error(`KOTOrder with ID ${kotid} not found.`);
-    }
-    let kotNum;
-    const updatedCounter = await updateKOTCounter(userId);
-    const cartItemsArray = existingKOTOrder.cartItems;
+        const existingKOTOrder = await tx.kOTOrder.findUnique({
+          where: { loginId: parseInt(userId), id: parsedKotId },
+          select: { cartItems: true, total: true },
+        });
 
-    if (typeof cartItemsArray === "string") {
-      const jitem = JSON.parse(cartItemsArray);
+        if (!existingKOTOrder) {
+          throw new Error(`KOTOrder with ID ${parsedKotId} not found.`);
+        }
 
-      jitem.push(updatedCart);
-      const finaltotal = existingKOTOrder.total + totalCost;
-      const updatedKOTOrder = await prisma.kOTOrder.update({
-        where: { loginId: parseInt(userId), id: kotid },
-        data: {
-          kotNumber: updatedCounter,
-          cartItems: JSON.stringify(jitem),
-          total: finaltotal,
-        },
-        select: {
-          kotNumber: true, // Retrieve the updated counter value
-        },
-      });
-      kotNum = updatedKOTOrder.kotNumber;
-    }
-    return {
-      message: "KOT Bill appended",
-      kotNum: kotNum,
-    };
+        const updatedCounter = await updateKOTCounter(userId, false, tx);
+
+        if (typeof existingKOTOrder.cartItems !== "string") {
+          throw new Error("Invalid cart items format");
+        }
+
+        const jitem = JSON.parse(existingKOTOrder.cartItems);
+        jitem.push(updatedCart);
+
+        const updatedKOTOrder = await tx.kOTOrder.update({
+          where: { loginId: parseInt(userId), id: parsedKotId },
+          data: {
+            kotNumber: updatedCounter,
+            cartItems: JSON.stringify(jitem),
+            total: existingKOTOrder.total + totalCost,
+          },
+          select: {
+            kotNumber: true,
+          },
+        });
+
+        return {
+          message: "KOT Bill appended",
+          kotNum: updatedKOTOrder.kotNumber,
+        };
+      },
+      {
+        maxWait: 5000,
+        timeout: 10000,
+      }
+    );
   } catch (error) {
     console.error("Error appending KOT order:", error);
     return {
-      message: "Failed to append the KOTbill.",
+      message: `Failed to append the KOT bill. Error: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
       kotNum: undefined,
     };
-  } finally {
-    await prisma.$disconnect();
   }
 }
+
 export async function editKOTorder(
   kotid: number | undefined,
   updatedCart: CartItem[],
@@ -1144,61 +1119,72 @@ export async function editKOTorder(
   if (!userId) {
     return { message: "User ID is required", kotNum: undefined };
   }
+
   try {
-    // Retrieve the current KOTOrder
-    const existingKOTOrder = await prisma.kOTOrder.findUnique({
-      where: { loginId: parseInt(userId), id: kotid },
-      select: { cartItems: true, total: true }, // Select only the cartItems field
-    });
+    return await prisma.$transaction(
+      async (tx) => {
+        // Retrieve the current KOTOrder using transaction context
+        const existingKOTOrder = await tx.kOTOrder.findUnique({
+          where: { loginId: parseInt(userId), id: kotid },
+          select: { cartItems: true, total: true },
+        });
 
-    if (!existingKOTOrder) {
-      throw new Error(`KOTOrder with ID ${kotid} not found.`);
-    }
-    let kotNum;
-    const updatedCounter = await updateKOTCounter(userId);
-    const cartItemsArray = existingKOTOrder.cartItems;
+        if (!existingKOTOrder) {
+          throw new Error(`KOTOrder with ID ${kotid} not found.`);
+        }
 
-    if (typeof cartItemsArray === "string") {
-      const jitem = JSON.parse(cartItemsArray);
-      let lasttotal;
-      if (jitem.length > 0) {
-        const lastItem = jitem[jitem.length - 1];
-        lasttotal = lastItem.reduce(
-          (acc: number, item: CartItem) => acc + item.cost * item.quantity,
-          0
-        );
-        jitem[jitem.length - 1] = updatedCart;
+        // Get updated counter within transaction
+        const updatedCounter = await updateKOTCounter(userId, false, tx);
+        const cartItemsArray = existingKOTOrder.cartItems;
+
+        if (typeof cartItemsArray === "string") {
+          const jitem = JSON.parse(cartItemsArray);
+          let lasttotal = 0;
+
+          if (jitem.length > 0) {
+            const lastItem = jitem[jitem.length - 1];
+            lasttotal = lastItem.reduce(
+              (acc: number, item: CartItem) => acc + item.cost * item.quantity,
+              0
+            );
+            jitem[jitem.length - 1] = updatedCart;
+          }
+
+          const finaltotal = existingKOTOrder.total + totalCost - lasttotal;
+
+          const updatedKOTOrder = await tx.kOTOrder.update({
+            where: { loginId: parseInt(userId), id: kotid },
+            data: {
+              kotNumber: updatedCounter,
+              cartItems: JSON.stringify(jitem),
+              total: finaltotal,
+            },
+            select: {
+              kotNumber: true,
+            },
+          });
+
+          return {
+            message: "KOT Bill edited",
+            kotNum: updatedKOTOrder.kotNumber,
+          };
+        }
+
+        throw new Error("Invalid cart items format");
+      },
+      {
+        maxWait: 5000, // 5 seconds maximum wait time
+        timeout: 10000, // 10 seconds timeout
       }
-
-      const finaltotal = existingKOTOrder.total + totalCost - lasttotal;
-
-      const updatedKOTOrder = await prisma.kOTOrder.update({
-        where: { loginId: parseInt(userId), id: kotid },
-        data: {
-          kotNumber: updatedCounter,
-          cartItems: JSON.stringify(jitem),
-          total: finaltotal,
-        },
-        select: {
-          kotNumber: true, // Retrieve the updated counter value
-        },
-      });
-      kotNum = updatedKOTOrder.kotNumber;
-    }
-
-    return {
-      message: "KOT Bill edited",
-      kotNum: kotNum,
-    };
+    );
   } catch (error) {
     console.error("Error editing KOT order:", error);
-
     return {
-      message: "Failed to edit the KOTbill.",
+      message: `Failed to edit the KOTbill.Error: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
       kotNum: undefined,
     };
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -1242,7 +1228,11 @@ export async function cancelBill(
 
 export async function getCategories() {
   try {
-    const categories = await prisma.category.findMany({});
+    console.log("catgeors fetched");
+    const categories: {
+      id: number;
+      name: string;
+    }[] = await prisma.category.findMany({});
     categories.sort((a, b) => {
       const aStartsWithI = a.name.startsWith("I") ? 0 : 1;
       const bStartsWithI = b.name.startsWith("I") ? 0 : 1;
@@ -1270,7 +1260,6 @@ export async function addCategory(name: string) {
       },
     });
 
-    revalidatePath("/billing");
     return { success: true };
   } catch (error) {
     console.error("Database Error:", error);
@@ -1285,7 +1274,6 @@ export async function updateCategory(id: number, name: string) {
       data: { name },
     });
 
-    revalidatePath("/billing");
     return { success: true };
   } catch (error) {
     console.error("Database Error:", error);
@@ -1299,7 +1287,6 @@ export async function deleteCategory(id: number) {
       where: { id },
     });
 
-    revalidatePath("/billing");
     return { success: true };
   } catch (error) {
     console.error("Database Error:", error);

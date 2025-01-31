@@ -1,118 +1,162 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCart } from '../context/CartContext'
-import {  Menu, Transition } from '@headlessui/react'
+import { Menu, Transition } from '@headlessui/react'
 import { EllipsisVerticalIcon } from '@heroicons/react/24/solid'
 import Link from 'next/link'
-import { getIceCreamData, deleteIceCreamById, searchKOT, getCategories } from '@/app/lib/actions'
+import { searchKOTFromCache } from '@/app/lib/utils';
+import { 
+  getIceCreamData, 
+  deleteIceCreamById, 
 
-
-import { CreateIcecream } from '@/app/validation_schemas'
+  getCategories 
+} from '@/app/lib/actions'
 import { useToast } from "@/hooks/use-toast"
-import { useUser } from '@/context/UserContext';
+import { useUser } from '@/context/UserContext'
+import { useKOTData } from '@/hooks/useKOTData'
+import React from 'react'
 
+
+// Wrapper functions to handle server actions
+const fetchIceCreams = async () => {
+  const result = await getIceCreamData()
+  // Ensure we return a plain object
+  return {
+    ...result,
+    data: result.data.map(item => ({ ...item }))
+  }
+}
+
+const fetchCategories = async () => {
+  const result = await getCategories()
+  // Ensure we return a plain object
+  return {
+    ...result,
+    data: result.data.map(item => ({ ...item }))
+  }
+}
 
 export default function IceCreamList() {
-
-  const { userId } = useUser();
-  const { toast } = useToast();
-  const [iceCreamFlavors, setIceCreamFlavors] = useState<CreateIcecream[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [categories, setCategories] = useState<{id:number,name:string}[]>([]);
+  const { userId } = useUser()
+  const { toast } = useToast()
+  
   const { addToCart } = useCart()
-  const hasFetched = useRef(false);
+  const queryClient = useQueryClient()
+  
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('All')
 
-  useEffect(() => {
-    const fetchAllData = async () => {
-      if (!hasFetched.current) {
-        try {
-          setIsLoading(true);
-          // Fetch both data sets concurrently
-          const [iceCreamsResult, categoriesResult] = await Promise.all([
-            getIceCreamData(),
-            getCategories()
-          ]);
-  
-          if (iceCreamsResult.success) {
-            setIceCreamFlavors(iceCreamsResult.data);
-          } else {
-            setError('Failed to fetch ice cream data');
-          }
-  
-          if (categoriesResult.success) {
-            setCategories(categoriesResult.data);
-          }
-  
-        } catch (err) {
-          setError('An error occurred while fetching data');
-          console.error(err);
-        } finally {
-          setIsLoading(false);
-          hasFetched.current = true;
-        }
+  // Query for ice cream data
+  const { 
+    data: iceCreamData,
+    isLoading: isLoadingIceCreams,
+    error: iceCreamError
+  } = useQuery({
+    queryKey: ['iceCreams'],
+    queryFn: fetchIceCreams,
+    staleTime: 1000 * 60 * 60 * 12, // 12 hours
+    gcTime: 1000 * 60 * 60 * 24
+  })
+
+  // Query for categories
+  const {
+    data: categoriesData,
+    isLoading: isLoadingCategories,
+  } = useQuery({
+    queryKey: ['categories'],
+    queryFn: fetchCategories,
+    staleTime: 1000 * 60 * 60 * 12, // 12 hours
+    gcTime: 1000 * 60 * 60 * 24
+  })
+  const { data: kotOrders} = useKOTData(userId??'');
+  // Delete mutation
+  const { mutate: deleteIceCream } = useMutation({
+    mutationFn: async (id: number) => {
+      if (!userId) {
+        throw new Error("User ID is required.")
       }
-    };
-  
-    fetchAllData();
-  }, []);
+      //
 
-  if (isLoading) {
-    return <div>Loading ice cream flavors...</div>;
-  }
 
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
-
-  const filteredFlavors = iceCreamFlavors.filter((flavor) => {
-    const matchesSearch = flavor.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || flavor.category.name === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  const handleDelete = async (id: number) => {
-    const confirmDelete = confirm('Are you sure you want to delete this ice cream?');
-    
-    if (confirmDelete) {
-      
-        if (!userId) {
-          throw new Error("User ID is required.");
-        }
-        const iceCreamInKOT = await searchKOT(id, userId, "icecream");
-        if (iceCreamInKOT) {
+ 
+        if (kotOrders === undefined) {
+          console.log("something went wrong");
           toast({
             title: "Error",
-            description: "Item in KOT. Please clear the KOT before deleting.",
+            description: "Failed to check KOT status. Please try again.",
             variant: "destructive",
           });
           return;
         }
-        const result = await deleteIceCreamById(id);
-        if(result.success){
-          setIceCreamFlavors(prevFlavors => prevFlavors.filter(flavor => flavor.id !== id));
-          toast({
-            title: "Success",
-            description: "Ice cream deleted successfully",
-          });
-        }
-        else{
-          toast({
-            title: "Error",
-            description: "Icecream in order history/DB issue.Failed to delete",
-            variant: "destructive",
-          });
-        }
-      
-      } 
-    
+        let shouldDelete = kotOrders.data.length === 0;
+
+  if (!shouldDelete) {
+    const iceCreamInKOT = await searchKOTFromCache(id, userId, "icecream", kotOrders);
+    shouldDelete = !iceCreamInKOT;
   }
+
+  if (!shouldDelete) {
+    toast({
+      title: "Error",
+      description: "Item in KOT.",
+      variant: "destructive",
+    });
+    return;
+  }
+      
+   
+      
+      const result = await deleteIceCreamById(id)
+      if (result.success) {
+        queryClient.invalidateQueries({ queryKey: ['iceCreams'] });
+        toast({
+          title: "Success",
+          description: "Ice cream deleted successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Icecream exists in database.Failed to delete ice cream",
+          variant: "destructive",
+        });
+      }
+      
+      return result;
+    }
+  })
+
+  const handleDelete = async (id: number) => {
+    const confirmDelete = confirm('Are you sure you want to delete this ice cream?')
+    if (confirmDelete) {
+      deleteIceCream(id)
+    }
+  }
+
+  // Loading state
+  if (isLoadingIceCreams || isLoadingCategories) {
+    return <div>Loading ice cream flavors...</div>
+  }
+
+  // Error state
+  if (iceCreamError) {
+    return <div>Error: {(iceCreamError as Error).message}</div>
+  }
+
+  const iceCreamFlavors = iceCreamData?.data || []
+  const categories = categoriesData?.data || []
+
+  // Filter flavors
+  const filteredFlavors = iceCreamFlavors.filter((flavor) => {
+    const matchesSearch = flavor.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesCategory = selectedCategory === 'All' || flavor.category.name === selectedCategory
+    return matchesSearch && matchesCategory
+  })
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
+      {/* Rest of your component JSX remains the same */}
       <h2 className="text-2xl font-semibold mb-4">Ice Cream Flavors</h2>
       
       <div className="flex gap-4 mb-4">
@@ -122,7 +166,7 @@ export default function IceCreamList() {
           onChange={(e) => setSelectedCategory(e.target.value)}
         >
           <option value="All">All Categories</option>
-          {Object.values(categories).map((category) => (
+          {categories.map((category) => (
             <option key={category.id} value={category.name}>
               {category.name}
             </option>
