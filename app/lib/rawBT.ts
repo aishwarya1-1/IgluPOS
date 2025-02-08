@@ -1,72 +1,81 @@
-// rawBtPrinterService.ts
-export class RawBTPrinterService {
-  // ESC/POS Commands
-  private ESC = "\x1B";
-  private GS = "\x1D";
-  private INIT = "\x1B\x40"; // Initialize printer
-  private CENTER = "\x1B\x61\x01"; // Center alignment
-  private LEFT = "\x1B\x61\x00"; // Left alignment
-  private RIGHT = "\x1B\x61\x02"; // Right alignment
-  private BOLD_ON = "\x1B\x45\x01"; // Bold on
-  private BOLD_OFF = "\x1B\x45\x00"; // Bold off
-  private DOUBLE_ON = "\x1B\x21\x30"; // Double height & width
-  private DOUBLE_OFF = "\x1B\x21\x00"; // Normal text
-  private NEW_LINE = "\x0A"; // Line feed
-  private CUT = "\x1D\x56\x41"; // Paper cut
+// lib/utils/rawBT.ts
 
-  formatText(
+type PrintOptions = {
+  bold?: boolean;
+  center?: boolean;
+  double?: boolean;
+};
+
+type PrintItem = {
+  name: string;
+  quantity: number;
+  cost?: number;
+  addons?: Array<{
+    addonName: string;
+    addonQuantity: number;
+    addonPrice?: number;
+  }>;
+};
+
+export class RawBTPrinter {
+  // Commands for 58mm printer
+  private static readonly COMMANDS = {
+    LF: "\x0A", // Line Feed
+    ESC: "\x1B", // ESC
+    CENTER: [0x1b, 0x61, 0x01], // Center alignment
+    LEFT: [0x1b, 0x61, 0x00], // Left alignment
+    RIGHT: [0x1b, 0x61, 0x02], // Right alignment
+    BOLD_ON: [0x1b, 0x45, 0x01], // Bold font ON
+    BOLD_OFF: [0x1b, 0x45, 0x00], // Bold font OFF
+    NORMAL: [0x1b, 0x21, 0x00], // Normal size text
+    DOUBLE: [0x1b, 0x21, 0x30], // Double size text
+    INIT: [0x1b, 0x40], // Initialize printer
+    CUT: [0x1d, 0x56, 0x41], // Cut paper
+  };
+
+  private static createBuffer(commands: number[]): string {
+    return String.fromCharCode.apply(null, commands);
+  }
+
+  private static formatText(
     text: string,
-    options: {
-      bold?: boolean;
-      center?: boolean;
-      double?: boolean;
-    } = {}
+    options: PrintOptions = {}
+  ): number[] {
+    let commands: number[] = [];
+
+    if (options.center) {
+      commands = [...commands, ...this.COMMANDS.CENTER];
+    }
+    if (options.bold) {
+      commands = [...commands, ...this.COMMANDS.BOLD_ON];
+    }
+    if (options.double) {
+      commands = [...commands, ...this.COMMANDS.DOUBLE];
+    }
+
+    // Add text
+    const textBytes = Array.from(text).map((char) => char.charCodeAt(0));
+    commands = [...commands, ...textBytes, 0x0a]; // Add text and line feed
+
+    // Reset formatting
+    if (options.double) {
+      commands = [...commands, ...this.COMMANDS.NORMAL];
+    }
+    if (options.bold) {
+      commands = [...commands, ...this.COMMANDS.BOLD_OFF];
+    }
+    if (options.center) {
+      commands = [...commands, ...this.COMMANDS.LEFT];
+    }
+
+    return commands;
+  }
+
+  private static formatPriceItem(
+    item: string,
+    price: string,
+    width: number = 32
   ): string {
-    let formattedText = "";
-
-    if (options.center) formattedText += this.CENTER;
-    if (options.bold) formattedText += this.BOLD_ON;
-    if (options.double) formattedText += this.DOUBLE_ON;
-
-    formattedText += text + this.NEW_LINE;
-
-    if (options.double) formattedText += this.DOUBLE_OFF;
-    if (options.bold) formattedText += this.BOLD_OFF;
-    if (options.center) formattedText += this.LEFT;
-
-    return formattedText;
-  }
-
-  async print(content: string): Promise<void> {
-    try {
-      // Format content with printer initialization
-      const printData =
-        this.INIT + content + this.NEW_LINE + this.NEW_LINE + this.CUT;
-
-      // Convert to hex for RawBT
-      const hexString = this.convertToHex(printData);
-
-      // Create RawBT URL
-      const rawBtUrl = `rawbt:base64,${btoa(hexString)}`;
-
-      // Open URL which will be handled by RawBT app
-      window.location.href = rawBtUrl;
-    } catch (error) {
-      console.error("Printing error:", error);
-      throw new Error("Failed to print");
-    }
-  }
-
-  private convertToHex(str: string): string {
-    let hex = "";
-    for (let i = 0; i < str.length; i++) {
-      hex += str.charCodeAt(i).toString(16).padStart(2, "0");
-    }
-    return hex;
-  }
-
-  // Utility function to format price items
-  formatPriceItem(item: string, price: string, width: number = 32): string {
     const itemLength = item.length;
     const priceLength = price.length;
     const spacesNeeded = width - itemLength - priceLength;
@@ -74,5 +83,176 @@ export class RawBTPrinterService {
     if (spacesNeeded < 1) return `${item}\n${price}`;
 
     return `${item}${" ".repeat(spacesNeeded)}${price}`;
+  }
+
+  static async printCustomerBill(
+    items: PrintItem[],
+    totalCost: number,
+    billNo: string | null,
+    branchId: string,
+    shopName: string = "IGLU ICE CREAM SHOP"
+  ): Promise<void> {
+    try {
+      let commands: number[] = [...this.COMMANDS.INIT];
+
+      // Header
+      commands = [
+        ...commands,
+        ...this.formatText(shopName, {
+          center: true,
+          bold: true,
+          double: true,
+        }),
+      ];
+      commands = [
+        ...commands,
+        ...this.formatText(`Branch ID: ${branchId}`, { center: true }),
+      ];
+      commands = [
+        ...commands,
+        ...this.formatText(`Date: ${new Date().toLocaleDateString()}`, {
+          center: true,
+        }),
+      ];
+      commands = [
+        ...commands,
+        ...this.formatText("CUSTOMER COPY", { center: true, bold: true }),
+      ];
+      if (billNo) {
+        commands = [
+          ...commands,
+          ...this.formatText(`Bill Number: ${billNo}`, { center: true }),
+        ];
+      }
+      commands = [...commands, ...this.formatText("-".repeat(32))];
+
+      // Items
+      for (const item of items) {
+        commands = [
+          ...commands,
+          ...this.formatText(
+            this.formatPriceItem(
+              `${item.name} x ${item.quantity}`,
+              `Rs.${(item.cost! * item.quantity).toFixed(2)}`
+            )
+          ),
+        ];
+
+        if (item.addons?.length) {
+          for (const addon of item.addons) {
+            commands = [
+              ...commands,
+              ...this.formatText(
+                this.formatPriceItem(
+                  `  ${addon.addonName} x ${addon.addonQuantity}`,
+                  `Rs.${(addon.addonPrice! * addon.addonQuantity).toFixed(2)}`
+                )
+              ),
+            ];
+          }
+        }
+      }
+
+      // Total
+      commands = [...commands, ...this.formatText("-".repeat(32))];
+      commands = [
+        ...commands,
+        ...this.formatText(
+          this.formatPriceItem("Total:", `Rs.${totalCost.toFixed(2)}`),
+          { bold: true }
+        ),
+      ];
+
+      // Feed and cut
+      commands = [...commands, 0x0a, 0x0a, 0x0a, ...this.COMMANDS.CUT];
+
+      // Convert to base64
+      const buffer = this.createBuffer(commands);
+      const rawBtUrl = `rawbt:base64,${btoa(buffer)}`;
+
+      window.location.href = rawBtUrl;
+    } catch (error) {
+      console.error("Failed to print customer bill:", error);
+      throw new Error("Failed to print customer bill");
+    }
+  }
+
+  static async printKitchenOrder(
+    items: PrintItem[],
+    kotNumber: number | undefined,
+    branchId: string,
+    shopName: string = "IGLU ICE CREAM SHOP"
+  ): Promise<void> {
+    try {
+      let commands: number[] = [...this.COMMANDS.INIT];
+
+      // Header
+      commands = [
+        ...commands,
+        ...this.formatText(shopName, {
+          center: true,
+          bold: true,
+          double: true,
+        }),
+      ];
+      commands = [
+        ...commands,
+        ...this.formatText(`Branch ID: ${branchId}`, { center: true }),
+      ];
+      commands = [
+        ...commands,
+        ...this.formatText(`Date: ${new Date().toLocaleDateString()}`, {
+          center: true,
+        }),
+      ];
+      commands = [
+        ...commands,
+        ...this.formatText(`Time: ${new Date().toLocaleTimeString()}`, {
+          center: true,
+        }),
+      ];
+      commands = [
+        ...commands,
+        ...this.formatText("KITCHEN COPY", { center: true, bold: true }),
+      ];
+      if (kotNumber) {
+        commands = [
+          ...commands,
+          ...this.formatText(`KOT Number: ${kotNumber}`, { center: true }),
+        ];
+      }
+      commands = [...commands, ...this.formatText("-".repeat(32))];
+
+      // Items
+      for (const item of items) {
+        commands = [
+          ...commands,
+          ...this.formatText(`${item.quantity}x ${item.name}`, { bold: true }),
+        ];
+
+        if (item.addons?.length) {
+          for (const addon of item.addons) {
+            commands = [
+              ...commands,
+              ...this.formatText(
+                `  ${addon.addonName} x ${addon.addonQuantity}`
+              ),
+            ];
+          }
+        }
+      }
+
+      // Feed and cut
+      commands = [...commands, 0x0a, 0x0a, 0x0a, ...this.COMMANDS.CUT];
+
+      // Convert to base64
+      const buffer = this.createBuffer(commands);
+      const rawBtUrl = `rawbt:base64,${btoa(buffer)}`;
+
+      window.location.href = rawBtUrl;
+    } catch (error) {
+      console.error("Failed to print kitchen order:", error);
+      throw new Error("Failed to print kitchen order");
+    }
   }
 }

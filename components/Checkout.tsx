@@ -9,12 +9,13 @@ import Cart from './Cart';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from "@/hooks/use-toast"
 import { useQueryClient } from '@tanstack/react-query';
-import { RawBTPrinterService } from '@/app/lib/rawBT';
+import { RawBTPrinter }  from '@/app/lib/rawBT';
 
 
 export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: number; kotAction?: string ;cartItems?:string;}) {
   const { cart, clearCart, totalCost, populateCart } = useCart();
   const { userId } = useUser();
+  
   const queryClient = useQueryClient();
   const { toast } = useToast()
   const [kotActionState, setKotActionState] = useState<string | undefined>();
@@ -71,99 +72,46 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   // `;
 
   // Function for customer bill (Print 1)
-  const printerService = new RawBTPrinterService();
-
-const printCustomerBill = async (billNo: string | null) => {
-  try {
-    let content = '';
-    
-    // Header
-    content += printerService.formatText('IGLU ICE CREAM SHOP', { center: true, bold: true, double: true });
-    content += printerService.formatText('Branch ID: ' + userId, { center: true });
-    content += printerService.formatText('Date: ' + new Date().toLocaleDateString(), { center: true });
-    content += printerService.formatText('CUSTOMER COPY', { center: true, bold: true });
-    if (billNo) {
-      content += printerService.formatText('Bill Number: ' + billNo, { center: true });
-    }
-    content += printerService.formatText('--------------------------------');
-
-    // Items
-    for (const item of cart) {
-      content += printerService.formatText(
-        printerService.formatPriceItem(
-          `${item.name} x ${item.quantity}`,
-          `Rs.${(item.cost * item.quantity).toFixed(2)}`
-        )
+  const printCustomerBill = async (billNo: string | null) => {
+    try {
+      if(!userId){
+        return
+      }
+      await RawBTPrinter.printCustomerBill(
+        cart,
+        totalCost,
+        billNo,
+        userId
       );
-
-      // Addons
-      if (item.addons && item.addons.length > 0) {
-        for (const addon of item.addons) {
-          content += printerService.formatText(
-            printerService.formatPriceItem(
-              `  ${addon.addonName} x ${addon.addonQuantity}`,
-              `Rs.${(addon.addonPrice * addon.addonQuantity).toFixed(2)}`
-            )
-          );
-        }
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to print customer bill",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  // Replace your printKitchenOrder function with:
+  const printKitchenOrder = async (kot: number | undefined) => {
+    try {
+      if(!userId){
+        return
       }
+      await RawBTPrinter.printKitchenOrder(
+        cart,
+        kot,
+        userId
+      );
+    } catch{
+      toast({
+        title: "Error",
+        description: "Failed to print kitchen order",
+        variant: "destructive",
+      });
     }
+  };
 
-    // Total
-    content += printerService.formatText('--------------------------------');
-    content += printerService.formatText(
-      printerService.formatPriceItem('Total:', `Rs.${totalCost.toFixed(2)}`),
-      { bold: true }
-    );
-
-    await printerService.print(content);
-  } catch (error) {
-    console.error('Failed to print customer bill:', error);
-    toast({
-      title: "Error",
-      description: "Failed to print customer bill",
-      variant: "destructive",
-    });
-  }
-};
-
-const printKitchenOrder = async (kot: number | undefined) => {
-  try {
-    let content = '';
-    
-    // Header
-    content += printerService.formatText('IGLU ICE CREAM SHOP', { center: true, bold: true, double: true });
-    content += printerService.formatText('Branch ID: ' + userId, { center: true });
-    content += printerService.formatText('Date: ' + new Date().toLocaleDateString(), { center: true });
-    content += printerService.formatText('Time: ' + new Date().toLocaleTimeString(), { center: true });
-    content += printerService.formatText('KITCHEN COPY', { center: true, bold: true });
-    if (kot) {
-      content += printerService.formatText('KOT Number: ' + kot, { center: true });
-    }
-    content += printerService.formatText('--------------------------------');
-
-    // Items
-    for (const item of cart) {
-      content += printerService.formatText(`${item.quantity}x ${item.name}`, { bold: true });
-      
-      // Addons
-      if (item.addons && item.addons.length > 0) {
-        for (const addon of item.addons) {
-          content += printerService.formatText(`  ${addon.addonName} x ${addon.addonQuantity}`);
-        }
-      }
-    }
-
-    await printerService.print(content);
-  } catch (error) {
-    console.error('Failed to print kitchen order:', error);
-    toast({
-      title: "Error",
-      description: "Failed to print kitchen order",
-      variant: "destructive",
-    });
-  }
-};
   
   // useEffect for handling kotAction
 useEffect(() => {
