@@ -9,6 +9,8 @@ import Cart from './Cart';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from "@/hooks/use-toast"
 import { useQueryClient } from '@tanstack/react-query';
+import { RawBTPrinterService } from '@/app/lib/rawBT';
+
 
 export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: number; kotAction?: string ;cartItems?:string;}) {
   const { cart, clearCart, totalCost, populateCart } = useCart();
@@ -69,126 +71,99 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   `;
 
   // Function for customer bill (Print 1)
-  const printCustomerBill = (billNo : string | null) => {
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Customer Bill</title>
-          
-          <style>${getCommonPrintStyles()}</style>
-        </head>
-        <body>
-          <div class="header">
-            <h1 style="font-size: 16px; margin: 0;">Iglu Ice Cream Shop</h1>
-           <p style="margin: 5px 0;">Branch Id: ${userId}</p>
-            <p style="margin: 5px 0;">Date: ${new Date().toLocaleDateString()}</p>
-            <p style="margin: 5px 0; font-weight: bold;">CUSTOMER COPY</p>
-            ${billNo ? `<p style="margin: 5px 0;">Bill Number: ${billNo}</p>` : ''}
-          </div>
-          <div class="items">
-            ${cart.map(item => `
-              <div class="item">
-                <span>${item.name} x ${item.quantity}</span>
-                <span>Rs.${(item.cost * item.quantity).toFixed(2)}</span>
-              </div>
-             ${item.addons && item.addons.length > 0 ? `
-                <div class="addons" style="margin-left: 20px; font-size: 11px;">
-                  <div>Addons:</div>
-                  ${item.addons.map(addon => `
-                    <div class="addon-item">
-                      <span>${addon.addonName} x ${addon.addonQuantity}</span>
-                      <span>Rs.${(addon.addonPrice * addon.addonQuantity).toFixed(2)}</span>
-                    </div>
-                  `).join('')}
-             
-                </div>
-              ` : ''}
-            `).join('')}
-          </div>
-          <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
-          <div class="total">
-           
-            <div class="item" style="font-weight: bold;">
-              <span>Total:</span>
-              <span>Rs.${totalCost.toFixed(2)}</span>
-            </div>
-          </div>
-          <script>
-            window.onload = function() {
-              window.print();
-              window.onafterprint = function() {
-                window.close();
-              };
-            }
-          </script>
-        </body>
-      </html>
-    `;
+  const printerService = new RawBTPrinterService();
 
-    const printWindow = window.open('', '_blank', 'width=300,height=600');
-    if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
+const printCustomerBill = async (billNo: string | null) => {
+  try {
+    let content = '';
+    
+    // Header
+    content += printerService.formatText('IGLU ICE CREAM SHOP', { center: true, bold: true, double: true });
+    content += printerService.formatText('Branch ID: ' + userId, { center: true });
+    content += printerService.formatText('Date: ' + new Date().toLocaleDateString(), { center: true });
+    content += printerService.formatText('CUSTOMER COPY', { center: true, bold: true });
+    if (billNo) {
+      content += printerService.formatText('Bill Number: ' + billNo, { center: true });
     }
-  };
+    content += printerService.formatText('--------------------------------');
 
-  // Function for kitchen order (Print 2)
-  const printKitchenOrder = (kot : number | undefined) => {
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Kitchen Order</title>
-          <style>${getCommonPrintStyles()}</style>
-        </head>
-        <body>
-          <div class="header">
-            <h1 style="font-size: 16px; margin: 0;">Iglu Ice Cream Shop</h1>
-            <p style="margin: 5px 0;">Branch Id: ${userId}</p>
-            <p style="margin: 5px 0;">Date: ${new Date().toLocaleDateString()}</p>
-            <p style="margin: 5px 0;">Time: ${new Date().toLocaleTimeString()}</p>
-            <p style="margin: 5px 0; font-weight: bold;">KITCHEN COPY</p>
-            ${kot ? `<p style="margin: 5px 0;">KOT Number: ${kot}</p>` : ''}
-          </div>
-          <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
-          <div class="items">
-            ${cart.map(item => `
-              <div class="item" style="justify-content: flex-start; gap: 20px;">
-                <span style="font-size: 14px; font-weight: bold;">${item.quantity}x</span>
-                <span style="font-size: 14px;">${item.name}</span>
-              </div>
-              ${item.addons && item.addons.length > 0 ? `
-                <div class="addons" style="margin-left: 40px; font-size: 12px;">
-                  <div>Addons:</div>
-                  ${item.addons.map(addon => `
-                    <div style="margin-left: 10px;">
-                      ${addon.addonName} x ${addon.addonQuantity}
-                    </div>
-                  `).join('')}
-            
-                </div>
-              ` : ''}
-            `).join('')}
-          </div>
-          <script>
-            window.onload = function() {
-              window.print();
-              window.onafterprint = function() {
-                window.close();
-              };
-            }
-          </script>
-        </body>
-      </html>
-    `;
+    // Items
+    for (const item of cart) {
+      content += printerService.formatText(
+        printerService.formatPriceItem(
+          `${item.name} x ${item.quantity}`,
+          `Rs.${(item.cost * item.quantity).toFixed(2)}`
+        )
+      );
 
-    const printWindow = window.open('', '_blank', 'width=300,height=600');
-    if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
+      // Addons
+      if (item.addons && item.addons.length > 0) {
+        for (const addon of item.addons) {
+          content += printerService.formatText(
+            printerService.formatPriceItem(
+              `  ${addon.addonName} x ${addon.addonQuantity}`,
+              `Rs.${(addon.addonPrice * addon.addonQuantity).toFixed(2)}`
+            )
+          );
+        }
+      }
     }
-  };
+
+    // Total
+    content += printerService.formatText('--------------------------------');
+    content += printerService.formatText(
+      printerService.formatPriceItem('Total:', `Rs.${totalCost.toFixed(2)}`),
+      { bold: true }
+    );
+
+    await printerService.print(content);
+  } catch (error) {
+    console.error('Failed to print customer bill:', error);
+    toast({
+      title: "Error",
+      description: "Failed to print customer bill",
+      variant: "destructive",
+    });
+  }
+};
+
+const printKitchenOrder = async (kot: number | undefined) => {
+  try {
+    let content = '';
+    
+    // Header
+    content += printerService.formatText('IGLU ICE CREAM SHOP', { center: true, bold: true, double: true });
+    content += printerService.formatText('Branch ID: ' + userId, { center: true });
+    content += printerService.formatText('Date: ' + new Date().toLocaleDateString(), { center: true });
+    content += printerService.formatText('Time: ' + new Date().toLocaleTimeString(), { center: true });
+    content += printerService.formatText('KITCHEN COPY', { center: true, bold: true });
+    if (kot) {
+      content += printerService.formatText('KOT Number: ' + kot, { center: true });
+    }
+    content += printerService.formatText('--------------------------------');
+
+    // Items
+    for (const item of cart) {
+      content += printerService.formatText(`${item.quantity}x ${item.name}`, { bold: true });
+      
+      // Addons
+      if (item.addons && item.addons.length > 0) {
+        for (const addon of item.addons) {
+          content += printerService.formatText(`  ${addon.addonName} x ${addon.addonQuantity}`);
+        }
+      }
+    }
+
+    await printerService.print(content);
+  } catch (error) {
+    console.error('Failed to print kitchen order:', error);
+    toast({
+      title: "Error",
+      description: "Failed to print kitchen order",
+      variant: "destructive",
+    });
+  }
+};
   
   // useEffect for handling kotAction
 useEffect(() => {
