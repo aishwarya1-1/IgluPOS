@@ -40,35 +40,35 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
 
 
   // Common print styles for thermal paper
-  const getCommonPrintStyles = () => `
-    @page {
-      size: 80mm 210mm;
-      margin: 0;
-    }
-    @media print {
-      body {
-        width: 80mm;
-        margin: 0;
-        padding: 5mm;
-        font-family: 'Arial', sans-serif;
-        font-size: 12px;
-        print-color-adjust: exact;
-        -webkit-print-color-adjust: exact;
-      }
-      .header {
-        text-align: center;
-        margin-bottom: 10px;
-      }
-      .items {
-        margin-bottom: 10px;
-      }
-      .item {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 5px;
-      }
-    }
-  `;
+  // const getCommonPrintStyles = () => `
+  //   @page {
+  //     size: 80mm 210mm;
+  //     margin: 0;
+  //   }
+  //   @media print {
+  //     body {
+  //       width: 80mm;
+  //       margin: 0;
+  //       padding: 5mm;
+  //       font-family: 'Arial', sans-serif;
+  //       font-size: 12px;
+  //       print-color-adjust: exact;
+  //       -webkit-print-color-adjust: exact;
+  //     }
+  //     .header {
+  //       text-align: center;
+  //       margin-bottom: 10px;
+  //     }
+  //     .items {
+  //       margin-bottom: 10px;
+  //     }
+  //     .item {
+  //       display: flex;
+  //       justify-content: space-between;
+  //       margin-bottom: 5px;
+  //     }
+  //   }
+  // `;
 
   // Function for customer bill (Print 1)
   const printerService = new RawBTPrinterService();
