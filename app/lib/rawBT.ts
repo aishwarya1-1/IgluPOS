@@ -255,4 +255,197 @@ export class RawBTPrinter {
       throw new Error("Failed to print kitchen order");
     }
   }
+  private static generateCustomerBillCommands(
+    items: PrintItem[],
+    totalCost: number,
+    billNo: string | null,
+    branchId: string,
+    shopName: string = "IGLU ICE CREAM SHOP"
+  ): number[] {
+    let commands: number[] = [...this.COMMANDS.INIT];
+
+    // Header
+    commands = [
+      ...commands,
+      ...this.formatText(shopName, {
+        center: true,
+        bold: true,
+        double: true,
+      }),
+    ];
+    commands = [
+      ...commands,
+      ...this.formatText(`Branch ID: ${branchId}`, { center: true }),
+    ];
+    commands = [
+      ...commands,
+      ...this.formatText(`Date: ${new Date().toLocaleDateString()}`, {
+        center: true,
+      }),
+    ];
+    commands = [
+      ...commands,
+      ...this.formatText("CUSTOMER COPY", { center: true, bold: true }),
+    ];
+    if (billNo) {
+      commands = [
+        ...commands,
+        ...this.formatText(`Bill Number: ${billNo}`, { center: true }),
+      ];
+    }
+    commands = [...commands, ...this.formatText("-".repeat(32))];
+
+    // Items
+    for (const item of items) {
+      commands = [
+        ...commands,
+        ...this.formatText(
+          this.formatPriceItem(
+            `${item.name} x ${item.quantity}`,
+            `Rs.${(item.cost! * item.quantity).toFixed(2)}`
+          )
+        ),
+      ];
+
+      if (item.addons?.length) {
+        for (const addon of item.addons) {
+          commands = [
+            ...commands,
+            ...this.formatText(
+              this.formatPriceItem(
+                `  ${addon.addonName} x ${addon.addonQuantity}`,
+                `Rs.${(addon.addonPrice! * addon.addonQuantity).toFixed(2)}`
+              )
+            ),
+          ];
+        }
+      }
+    }
+
+    // Total
+    commands = [...commands, ...this.formatText("-".repeat(32))];
+    commands = [
+      ...commands,
+      ...this.formatText(
+        this.formatPriceItem("Total:", `Rs.${totalCost.toFixed(2)}`),
+        { bold: true }
+      ),
+    ];
+
+    return [...commands, 0x0a, 0x0a];
+  }
+
+  // New method to generate kitchen order commands without printing
+  private static generateKitchenOrderCommands(
+    items: PrintItem[],
+    kotNumber: number | undefined,
+    branchId: string,
+    shopName: string = "IGLU ICE CREAM SHOP"
+  ): number[] {
+    let commands: number[] = [...this.COMMANDS.INIT];
+
+    // Header
+    commands = [
+      ...commands,
+      ...this.formatText(shopName, {
+        center: true,
+        bold: true,
+        double: true,
+      }),
+    ];
+    commands = [
+      ...commands,
+      ...this.formatText(`Branch ID: ${branchId}`, { center: true }),
+    ];
+    commands = [
+      ...commands,
+      ...this.formatText(`Date: ${new Date().toLocaleDateString()}`, {
+        center: true,
+      }),
+    ];
+    commands = [
+      ...commands,
+      ...this.formatText(`Time: ${new Date().toLocaleTimeString()}`, {
+        center: true,
+      }),
+    ];
+    commands = [
+      ...commands,
+      ...this.formatText("KITCHEN COPY", { center: true, bold: true }),
+    ];
+    if (kotNumber) {
+      commands = [
+        ...commands,
+        ...this.formatText(`KOT Number: ${kotNumber}`, { center: true }),
+      ];
+    }
+    commands = [...commands, ...this.formatText("-".repeat(32))];
+
+    // Items
+    for (const item of items) {
+      commands = [
+        ...commands,
+        ...this.formatText(`${item.quantity}x ${item.name}`, { bold: true }),
+      ];
+
+      if (item.addons?.length) {
+        for (const addon of item.addons) {
+          commands = [
+            ...commands,
+            ...this.formatText(`  ${addon.addonName} x ${addon.addonQuantity}`),
+          ];
+        }
+      }
+    }
+
+    return [...commands, 0x0a, 0x0a];
+  }
+
+  // New method to print both copies together
+  static async printCombinedOrder(
+    items: PrintItem[],
+    totalCost: number,
+    billNo: string | null,
+    kotNumber: number | undefined,
+    branchId: string,
+    shopName: string = "IGLU ICE CREAM SHOP"
+  ): Promise<void> {
+    try {
+      // Generate commands for both copies
+      const customerCommands = this.generateCustomerBillCommands(
+        items,
+        totalCost,
+        billNo,
+        branchId,
+        shopName
+      );
+
+      // Add cut command after customer copy
+      const withCut = [...customerCommands, ...this.COMMANDS.CUT];
+
+      // Add kitchen copy commands
+      const kitchenCommands = this.generateKitchenOrderCommands(
+        items,
+        kotNumber,
+        branchId,
+        shopName
+      );
+
+      // Combine all commands and add final cut
+      const allCommands = [
+        ...withCut,
+        ...kitchenCommands,
+        ...this.COMMANDS.CUT,
+      ];
+
+      // Convert to base64
+      const buffer = this.createBuffer(allCommands);
+      const rawBtUrl = `rawbt:base64,${btoa(buffer)}`;
+
+      window.location.href = rawBtUrl;
+    } catch (error) {
+      console.error("Failed to print combined order:", error);
+      throw new Error("Failed to print combined order");
+    }
+  }
 }

@@ -111,7 +111,26 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
       });
     }
   };
-
+  const printCombinedOrder = async (kot: number | undefined,billNo: string | null) => {
+    try {
+      if(!userId){
+        return
+      }
+      await RawBTPrinter.printCombinedOrder(
+        cart,
+        totalCost,
+        billNo,
+        kot,
+        userId
+      );
+    } catch{
+      toast({
+        title: "Error",
+        description: "Failed to print Bills",
+        variant: "destructive",
+      });
+    }
+  };
   
   // useEffect for handling kotAction
 useEffect(() => {
@@ -231,18 +250,11 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
       //   console.log("Failed to delete KOT, skipping cache invalidation.");
       // }
     } else {
-      await printCustomerBill(userOrderId);
-
-      // await new Promise((resolve) => {
-      //   const checkPrintWindow = setInterval(() => {
-      //     if (!window.frames[0]) {
-      //       clearInterval(checkPrintWindow);
-      //       resolve(true);
-      //     }
-      //   }, 500);
-      // });
-
-      await printKitchenOrder(kotSave);
+      await printCombinedOrder(
+        
+        kotSave,
+        userOrderId
+      );
    
     }
 
