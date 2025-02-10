@@ -242,7 +242,7 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
       //   }, 500);
       // });
 
-      setTimeout(() => printKitchenOrder(kotSave), 1000);
+      await printKitchenOrder(kotSave);
    
     }
 
