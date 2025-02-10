@@ -233,14 +233,14 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
     } else {
       await printCustomerBill(userOrderId);
 
-      await new Promise((resolve) => {
-        const checkPrintWindow = setInterval(() => {
-          if (!window.frames[0]) {
-            clearInterval(checkPrintWindow);
-            resolve(true);
-          }
-        }, 500);
-      });
+      // await new Promise((resolve) => {
+      //   const checkPrintWindow = setInterval(() => {
+      //     if (!window.frames[0]) {
+      //       clearInterval(checkPrintWindow);
+      //       resolve(true);
+      //     }
+      //   }, 500);
+      // });
 
       setTimeout(() => printKitchenOrder(kotSave), 1000);
    
