@@ -30,9 +30,20 @@ export class RawBTPrinter {
     NORMAL: [0x1b, 0x21, 0x00], // Normal size text
     DOUBLE: [0x1b, 0x21, 0x30], // Double size text
     INIT: [0x1b, 0x40], // Initialize printer
-    CUT: [0x1d, 0x56, 0x41], // Cut paper
+    // Full cut with feed
+    CUT: [0x1d, 0x56, 0x41], // GS V A - Full cut
+    // Paper feed and cut
+    FEED_CUT: [
+      0x1b,
+      0x64,
+      0x05, // Feed 5 lines (ESC d n)
+      0x1d,
+      0x56,
+      0x41, // Full cut (GS V A)
+    ],
+    // Feed lines
+    FEED_LINES: [0x1b, 0x64, 0x08], // Feed 8 lines (ESC d n)
   };
-
   private static createBuffer(commands: number[]): string {
     return String.fromCharCode.apply(null, commands);
   }
@@ -421,7 +432,11 @@ export class RawBTPrinter {
       );
 
       // Add cut command after customer copy
-      const withCut = [...customerCommands, ...this.COMMANDS.CUT];
+      const withCut = [
+        ...customerCommands,
+        ...this.COMMANDS.FEED_LINES, // Feed extra lines
+        ...this.COMMANDS.FEED_CUT, // Feed and cut
+      ];
 
       // Add kitchen copy commands
       const kitchenCommands = this.generateKitchenOrderCommands(
@@ -433,9 +448,12 @@ export class RawBTPrinter {
 
       // Combine all commands and add final cut
       const allCommands = [
-        ...withCut,
-        ...kitchenCommands,
-        ...this.COMMANDS.CUT,
+        ...this.COMMANDS.INIT, // Initialize printer
+        ...withCut, // Customer copy with cut
+        ...this.COMMANDS.INIT, // Re-initialize printer for second print
+        ...kitchenCommands, // Kitchen copy
+        ...this.COMMANDS.FEED_LINES, // Feed extra lines
+        ...this.COMMANDS.FEED_CUT, // Final feed and cut
       ];
 
       // Convert to base64
