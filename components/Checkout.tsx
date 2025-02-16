@@ -9,8 +9,9 @@ import Cart from './Cart';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from "@/hooks/use-toast"
 import { useQueryClient } from '@tanstack/react-query';
-import { RawBTPrinter }  from '@/app/lib/rawBT';
 
+import { isMobileDevice } from '@/app/lib/device';
+import { RawBTPrinter } from '@/app/lib/rawBT';
 
 export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: number; kotAction?: string ;cartItems?:string;}) {
   const { cart, clearCart, totalCost, populateCart } = useCart();
@@ -18,6 +19,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   
   const queryClient = useQueryClient();
   const { toast } = useToast()
+  const isMobile = isMobileDevice();
   const [kotActionState, setKotActionState] = useState<string | undefined>();
 
   const createBilling = async (prevState: BillState, formData: FormData ) => {
@@ -39,50 +41,164 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   const [isKOTDisabled, setIsKOTDisabled] = useState(false);
   const [isSaveAndPrintDisabled, setIsSaveAndPrintDisabled] = useState(false);
 
+    const [isKOTPrintEnabled, setIsKOTPrintEnabled] = useState(true);
+  
+    const toggleKOTPrint = () => {
+      setIsKOTPrintEnabled(!isKOTPrintEnabled);
+    };
+  const getCommonPrintStyles = () => `
+  @page {
+    size: 80mm 210mm;
+    margin: 0;
+  }
+  @media print {
+    body {
+      width: 80mm;
+      margin: 0;
+      padding: 5mm;
+      font-family: 'Arial', sans-serif;
+      font-size: 12px;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .items {
+      margin-bottom: 10px;
+    }
+    .item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+  }
+`;
 
-  // Common print styles for thermal paper
-  // const getCommonPrintStyles = () => `
-  //   @page {
-  //     size: 80mm 210mm;
-  //     margin: 0;
-  //   }
-  //   @media print {
-  //     body {
-  //       width: 80mm;
-  //       margin: 0;
-  //       padding: 5mm;
-  //       font-family: 'Arial', sans-serif;
-  //       font-size: 12px;
-  //       print-color-adjust: exact;
-  //       -webkit-print-color-adjust: exact;
-  //     }
-  //     .header {
-  //       text-align: center;
-  //       margin-bottom: 10px;
-  //     }
-  //     .items {
-  //       margin-bottom: 10px;
-  //     }
-  //     .item {
-  //       display: flex;
-  //       justify-content: space-between;
-  //       margin-bottom: 5px;
-  //     }
-  //   }
-  // `;
+// Function for customer bill (Print 1)
+let printFrame: HTMLIFrameElement | null = null;
 
+const getPrintFrame = () => {
+  if (!printFrame) {
+    printFrame = document.createElement('iframe');
+    printFrame.style.position = 'fixed';
+    printFrame.style.right = '-9999px';
+    printFrame.style.bottom = '-9999px';
+    document.body.appendChild(printFrame);
+  }
+  return printFrame;
+};
+
+const printDocument = (content: string): Promise<void> => {
+  return new Promise((resolve) => {
+    const frame = getPrintFrame();
+    const doc = frame.contentWindow?.document;
+    
+    if (!doc) {
+      resolve();
+      return;
+    }
+
+    // Clear previous content
+    doc.open();
+    doc.write('');
+    doc.close();
+
+    // Write new content
+    doc.open();
+    doc.write(`
+      <style>
+        @page { size: 80mm 210mm; margin: 0; }
+        body { margin: 5mm; font-family: Arial; font-size: 12px; }
+      </style>
+      ${content}
+    `);
+    doc.close();
+
+    const onPrintComplete = () => {
+      frame.contentWindow?.removeEventListener('afterprint', onPrintComplete);
+      resolve();
+    };
+
+    frame.contentWindow?.addEventListener('afterprint', onPrintComplete);
+    frame.contentWindow?.print();
+  });
+};
+
+const printCustomerBillDesktop = async (billNo: string | null) => {
+  const content = `
+    <div style="text-align: center">
+      <h1 style="font-size: 16px; margin: 0;">Iglu Ice Cream Shop</h1>
+      <p style="margin: 5px 0;">Branch Id: ${userId}</p>
+      <p style="margin: 5px 0;">Date: ${new Date().toLocaleDateString()}</p>
+      <p style="margin: 5px 0; font-weight: bold;">CUSTOMER COPY</p>
+      ${billNo ? `<p style="margin: 5px 0;">Bill Number: ${billNo}</p>` : ''}
+    </div>
+    ${cart.map(item => `
+      <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+        <span>${item.name} x ${item.quantity}</span>
+        <span>Rs.${(item.cost * item.quantity).toFixed(2)}</span>
+      </div>
+      ${item.addons?.length ? 
+        item.addons.map(addon => `
+          <div style="margin-left: 20px; font-size: 11px; display: flex; justify-content: space-between;">
+            <span>${addon.addonName} x ${addon.addonQuantity}</span>
+            <span>Rs.${(addon.addonPrice * addon.addonQuantity).toFixed(2)}</span>
+          </div>
+        `).join('') : ''
+      }
+    `).join('')}
+    <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
+    <div style="font-weight: bold; text-align: right">
+      Total: Rs.${totalCost.toFixed(2)}
+    </div>
+  `;
+
+  await printDocument(content);
+};
+
+const printKitchenOrderDesktop = async (kot: number | undefined) => {
+  const content = `
+    <div style="text-align: center">
+      <h1 style="font-size: 16px; margin: 0;">Iglu Ice Cream Shop</h1>
+      <p>Branch Id: ${userId}</p>
+      <p>Date: ${new Date().toLocaleDateString()}</p>
+      <p>Time: ${new Date().toLocaleTimeString()}</p>
+      <p style="font-weight: bold;">KITCHEN COPY</p>
+      ${kot ? `<p>KOT Number: ${kot}</p>` : ''}
+    </div>
+    <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
+    ${cart.map(item => `
+      <div style="display: flex; gap: 20px; margin: 5px 0;">
+        <span style="font-weight: bold;">${item.quantity}x</span>
+        <span>${item.name}</span>
+      </div>
+      ${item.addons?.length ? `
+        <div style="margin-left: 40px; font-size: 12px;">
+          ${item.addons.map(addon => 
+            `<div>${addon.addonName} x ${addon.addonQuantity}</div>`
+          ).join('')}
+        </div>
+      ` : ''}
+    `).join('')}
+  `;
+
+  await printDocument(content);
+};
   // Function for customer bill (Print 1)
   const printCustomerBill = async (billNo: string | null) => {
     try {
-      if(!userId){
-        return
+      if (!userId) {
+        return;
       }
-      await RawBTPrinter.printCustomerBill(
-        cart,
-        totalCost,
-        billNo,
-        userId
-      );
+      
+      if(isMobile){
+      await RawBTPrinter.printCustomerBill(cart, totalCost, billNo, userId)
+    }
+    else{
+      await printCustomerBillDesktop(billNo)
+    }
     } catch {
       toast({
         title: "Error",
@@ -92,18 +208,21 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
     }
   };
   
-  // Replace your printKitchenOrder function with:
   const printKitchenOrder = async (kot: number | undefined) => {
     try {
-      if(!userId){
-        return
+      if (!userId) {
+        return;
       }
-      await RawBTPrinter.printKitchenOrder(
-        cart,
-        kot,
-        userId
-      );
-    } catch{
+      
+      if(isMobile){
+
+      
+      await RawBTPrinter.printKitchenOrder(cart, kot, userId)
+    }
+    else{
+      await printKitchenOrderDesktop(kot)
+    }
+    } catch {
       toast({
         title: "Error",
         description: "Failed to print kitchen order",
@@ -111,19 +230,33 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
       });
     }
   };
-  const printCombinedOrder = async (kot: number | undefined,billNo: string | null) => {
+  
+  const printCombinedOrder = async (kot: number | undefined, billNo: string | null) => {
     try {
-      if(!userId){
-        return
+      if (!userId) {
+        return;
       }
-      await RawBTPrinter.printCombinedOrder(
+      
+      if(isMobile){
+      await  RawBTPrinter.printCombinedOrder(
         cart,
         totalCost,
         billNo,
         kot,
         userId
-      );
-    } catch{
+      )
+  
+  }
+  else {
+    // Print both documents with minimal delay
+    await Promise.all([
+      printCustomerBillDesktop(billNo),
+      new Promise(resolve => setTimeout(resolve, 100)).then(() => 
+        printKitchenOrderDesktop(kot)
+      )
+    ]);
+  }
+    } catch {
       toast({
         title: "Error",
         description: "Failed to print Bills",
@@ -131,7 +264,15 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
       });
     }
   };
-  
+  const cleanup = () => {
+    if (printFrame) {
+      document.body.removeChild(printFrame);
+      printFrame = null;
+    }
+  };
+  useEffect(() => {
+    return () => cleanup();
+  }, []);
   // useEffect for handling kotAction
 useEffect(() => {
   const handleKotAction = async () => {
@@ -242,20 +383,18 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
       await printCustomerBill(userOrderId);
      console.log("KOT order deleted, invalidating cache...");
         queryClient.invalidateQueries({ queryKey: ["kot-data", userId] });
-      // const result = await deleteKOTorder(kotid,userId);
-      // if (result.success) {
-      //   console.log("KOT order deleted, invalidating cache...");
-      //   queryClient.invalidateQueries({ queryKey: ["kot-data", userId] });
-      // } else {
-      //   console.log("Failed to delete KOT, skipping cache invalidation.");
-      // }
+
     } else {
+      if(isKOTPrintEnabled){
       await printCombinedOrder(
         
         kotSave,
         userOrderId
       );
-   
+    }
+   else{
+    await printCustomerBill(userOrderId)
+   }
     }
 
     // Clear cart and reset page
@@ -289,7 +428,9 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
           }
           else{
           queryClient.invalidateQueries({ queryKey: ['kot-data', userId]});
+          if(isKOTPrintEnabled){
           printKitchenOrder(appendRes.kotNum);
+          }
         clearCart();
         toast({
           title: "Success",
@@ -319,7 +460,9 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
           }
           else{
           queryClient.invalidateQueries({ queryKey: ['kot-data', userId] });
+          if(isKOTPrintEnabled){
           printKitchenOrder(editRes.kotNum);
+          }
           clearCart();
           toast({
             title: "Success",
@@ -340,7 +483,9 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
         const response = await createKOTBill([cart], totalCost, userId, customerName);
       if (response?.message === "KOT Bill Added") {
         queryClient.invalidateQueries({ queryKey: ['kot-data', userId] });
+        if(isKOTPrintEnabled){
         printKitchenOrder(response.kotNum);
+        }
         clearCart();
         toast({
           title: "Success",
@@ -392,7 +537,25 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-md max-w-md mx-auto">
-   
+     <div className="flex items-center justify-between mb-4">
+        <label htmlFor="kot-print-toggle" className="text-sm font-medium text-black-700">
+          Enable KOT Print
+        </label>
+        <button
+          id="kot-print-toggle"
+          type="button"
+          onClick={toggleKOTPrint}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+            isKOTPrintEnabled ? 'bg-blue-500' : 'bg-gray-300'
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              isKOTPrintEnabled ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
       <Cart cartErrors={state.errors?.cart} />
 
       <h2 className="text-xl font-semibold mb-4">Checkout</h2>
@@ -491,4 +654,4 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
       )}
     </div>
   );
-}
+  }

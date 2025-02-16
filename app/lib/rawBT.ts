@@ -1,20 +1,9 @@
 // lib/utils/rawBT.ts
-
+import { CartItem } from "@/context/CartContext";
 type PrintOptions = {
   bold?: boolean;
   center?: boolean;
   double?: boolean;
-};
-
-type PrintItem = {
-  name: string;
-  quantity: number;
-  cost?: number;
-  addons?: Array<{
-    addonName: string;
-    addonQuantity: number;
-    addonPrice?: number;
-  }>;
 };
 
 export class RawBTPrinter {
@@ -33,16 +22,6 @@ export class RawBTPrinter {
     // Full cut with feed
     CUT: [0x1d, 0x56, 0x41], // GS V A - Full cut
     // Paper feed and cut
-    FEED_CUT: [
-      0x1b,
-      0x64,
-      0x05, // Feed 5 lines (ESC d n)
-      0x1d,
-      0x56,
-      0x41, // Full cut (GS V A)
-    ],
-    // Feed lines
-    FEED_LINES: [0x1b, 0x64, 0x08], // Feed 8 lines (ESC d n)
   };
   private static createBuffer(commands: number[]): string {
     return String.fromCharCode.apply(null, commands);
@@ -97,7 +76,7 @@ export class RawBTPrinter {
   }
 
   static async printCustomerBill(
-    items: PrintItem[],
+    items: CartItem[],
     totalCost: number,
     billNo: string | null,
     branchId: string,
@@ -189,7 +168,7 @@ export class RawBTPrinter {
   }
 
   static async printKitchenOrder(
-    items: PrintItem[],
+    items: CartItem[],
     kotNumber: number | undefined,
     branchId: string,
     shopName: string = "IGLU ICE CREAM SHOP"
@@ -267,7 +246,7 @@ export class RawBTPrinter {
     }
   }
   private static generateCustomerBillCommands(
-    items: PrintItem[],
+    items: CartItem[],
     totalCost: number,
     billNo: string | null,
     branchId: string,
@@ -348,7 +327,7 @@ export class RawBTPrinter {
 
   // New method to generate kitchen order commands without printing
   private static generateKitchenOrderCommands(
-    items: PrintItem[],
+    items: CartItem[],
     kotNumber: number | undefined,
     branchId: string,
     shopName: string = "IGLU ICE CREAM SHOP"
@@ -414,7 +393,7 @@ export class RawBTPrinter {
 
   // New method to print both copies together
   static async printCombinedOrder(
-    items: PrintItem[],
+    items: CartItem[],
     totalCost: number,
     billNo: string | null,
     kotNumber: number | undefined,
@@ -431,13 +410,9 @@ export class RawBTPrinter {
         shopName
       );
 
-      // Add cut command after customer copy
-      const withCut = [
-        ...customerCommands,
-        ...this.COMMANDS.FEED_LINES, // Feed extra lines
-        ...this.COMMANDS.FEED_CUT, // Feed and cut
-      ];
-
+      const separatorCommands = this.formatText("-".repeat(48), {
+        center: true,
+      });
       // Add kitchen copy commands
       const kitchenCommands = this.generateKitchenOrderCommands(
         items,
@@ -446,14 +421,13 @@ export class RawBTPrinter {
         shopName
       );
 
-      // Combine all commands and add final cut
       const allCommands = [
         ...this.COMMANDS.INIT, // Initialize printer
-        ...withCut, // Customer copy with cut
-        ...this.COMMANDS.INIT, // Re-initialize printer for second print
+        ...customerCommands, // Customer copy
+        0x0a, // Extra line feed
+        ...separatorCommands, // Separator line
+        0x0a, // Extra line feed
         ...kitchenCommands, // Kitchen copy
-        ...this.COMMANDS.FEED_LINES, // Feed extra lines
-        ...this.COMMANDS.FEED_CUT, // Final feed and cut
       ];
 
       // Convert to base64
