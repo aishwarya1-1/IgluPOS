@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useFormState } from 'react-dom';
@@ -47,10 +48,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
       setIsKOTPrintEnabled(!isKOTPrintEnabled);
     };
     
-    
-// Function for customer bill (Print 1)
-let printFrame: HTMLIFrameElement | null = null;
-
+    let printFrame: HTMLIFrameElement | null = null;
 const getPrintFrame = () => {
   if (!printFrame) {
     printFrame = document.createElement('iframe');
@@ -71,28 +69,65 @@ const printDocument = (content: string): Promise<void> => {
       resolve();
       return;
     }
-
     // Clear previous content
     doc.open();
     doc.write('');
     doc.close();
-
     // Write new content
     doc.open();
     doc.write(`
       <style>
-        @page { size: 80mm 210mm; margin: 0; }
-        body { margin: 5mm; font-family: Arial; font-size: 12px; }
+        @page { size: 80mm auto; margin: 0; }
+        @media print {
+          body { 
+            margin: 5mm; 
+            font-family: monospace; 
+            font-size: 12px;
+            width: 70mm;
+          }
+          .divider {
+            border-top: 1px dashed #000;
+            margin: 5px 0;
+            width: 100%;
+          }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .font-bold { font-weight: bold; }
+          .title { font-size: 16px; font-weight: bold; }
+          .item-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+          }
+          .addon-row {
+            margin-left: 15px;
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+          }
+          .kitchen-item {
+            display: flex;
+            gap: 10px;
+            margin: 5px 0;
+          }
+          .kitchen-addon {
+            margin-left: 30px;
+            font-size: 11px;
+          }
+          .page-break {
+            page-break-after: always;
+          }
+        }
       </style>
       ${content}
     `);
     doc.close();
-
+    
     const onPrintComplete = () => {
       frame.contentWindow?.removeEventListener('afterprint', onPrintComplete);
       resolve();
     };
-
+    
     frame.contentWindow?.addEventListener('afterprint', onPrintComplete);
     frame.contentWindow?.print();
   });
@@ -100,62 +135,136 @@ const printDocument = (content: string): Promise<void> => {
 
 const printCustomerBillDesktop = async (billNo: string | null) => {
   const content = `
-    <div style="text-align: center">
-      <h1 style="font-size: 16px; margin: 0;">Iglu Ice Cream Shop</h1>
+    <div class="text-center">
+      <div class="title">Iglu Ice Cream Shop</div>
       <p style="margin: 5px 0;">Branch Id: ${userId}</p>
       <p style="margin: 5px 0;">Date: ${new Date().toLocaleDateString()}</p>
-      <p style="margin: 5px 0; font-weight: bold;">CUSTOMER COPY</p>
+      <p style="margin: 5px 0;" class="font-bold">CUSTOMER COPY</p>
       ${billNo ? `<p style="margin: 5px 0;">Bill Number: ${billNo}</p>` : ''}
     </div>
+    
     ${cart.map(item => `
-      <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+      <div class="item-row">
         <span>${item.name} x ${item.quantity}</span>
         <span>Rs.${(item.cost * item.quantity).toFixed(2)}</span>
       </div>
       ${item.addons?.length ? 
         item.addons.map(addon => `
-          <div style="margin-left: 20px; font-size: 11px; display: flex; justify-content: space-between;">
+          <div class="addon-row">
             <span>${addon.addonName} x ${addon.addonQuantity}</span>
             <span>Rs.${(addon.addonPrice * addon.addonQuantity).toFixed(2)}</span>
           </div>
         `).join('') : ''
       }
     `).join('')}
-    <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
-    <div style="font-weight: bold; text-align: right">
+    
+    <div class="divider"></div>
+    <div class="font-bold text-right">
       Total: Rs.${totalCost.toFixed(2)}
     </div>
+    <div style="margin-top: 10px; text-align: center;">
+      Thank you for your purchase!
+    </div>
   `;
-
+  
   await printDocument(content);
 };
 
 const printKitchenOrderDesktop = async (kot: number | undefined) => {
   const content = `
-    <div style="text-align: center">
-      <h1 style="font-size: 16px; margin: 0;">Iglu Ice Cream Shop</h1>
+    <div class="text-center">
+      <div class="title">Iglu Ice Cream Shop</div>
       <p>Branch Id: ${userId}</p>
       <p>Date: ${new Date().toLocaleDateString()}</p>
       <p>Time: ${new Date().toLocaleTimeString()}</p>
-      <p style="font-weight: bold;">KITCHEN COPY</p>
+      <p class="font-bold">KITCHEN COPY</p>
       ${kot ? `<p>KOT Number: ${kot}</p>` : ''}
     </div>
-    <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
+    
+    <div class="divider"></div>
+    
     ${cart.map(item => `
-      <div style="display: flex; gap: 20px; margin: 5px 0;">
-        <span style="font-weight: bold;">${item.quantity}x</span>
+      <div class="kitchen-item">
+        <span class="font-bold">${item.quantity}x</span>
         <span>${item.name}</span>
       </div>
-      ${item.addons?.length ? `
-        <div style="margin-left: 40px; font-size: 12px;">
-          ${item.addons.map(addon => 
-            `<div>${addon.addonName} x ${addon.addonQuantity}</div>`
-          ).join('')}
-        </div>
-      ` : ''}
+      ${item.addons?.length ? 
+        item.addons.map(addon => `
+          <div class="kitchen-addon">
+            ${addon.addonName} x ${addon.addonQuantity}
+          </div>
+        `).join('') : ''
+      }
     `).join('')}
   `;
+  
+  await printDocument(content);
+};
 
+const printCombinedBillDesktop = async (billNo: string | null, kot: number | undefined) => {
+  const content = `
+    <!-- Customer Copy -->
+    <div class="text-center">
+      <div class="title">Iglu Ice Cream Shop</div>
+      <p style="margin: 5px 0;">Branch Id: ${userId}</p>
+      <p style="margin: 5px 0;">Date: ${new Date().toLocaleDateString()}</p>
+      <p style="margin: 5px 0;" class="font-bold">CUSTOMER COPY</p>
+      ${billNo ? `<p style="margin: 5px 0;">Bill Number: ${billNo}</p>` : ''}
+    </div>
+    
+    ${cart.map(item => `
+      <div class="item-row">
+        <span>${item.name} x ${item.quantity}</span>
+        <span>Rs.${(item.cost * item.quantity).toFixed(2)}</span>
+      </div>
+      ${item.addons?.length ? 
+        item.addons.map(addon => `
+          <div class="addon-row">
+            <span>${addon.addonName} x ${addon.addonQuantity}</span>
+            <span>Rs.${(addon.addonPrice * addon.addonQuantity).toFixed(2)}</span>
+          </div>
+        `).join('') : ''
+      }
+    `).join('')}
+    
+    <div class="divider"></div>
+    <div class="font-bold text-right">
+      Total: Rs.${totalCost.toFixed(2)}
+    </div>
+    <div style="margin-top: 10px; text-align: center;">
+      Thank you for your purchase!
+    </div>
+    
+    <!-- Page Break for Cut -->
+    <div class="page-break"></div>
+    
+    <!-- Kitchen Copy -->
+    <div class="text-center">
+      <div class="title">Iglu Ice Cream Shop</div>
+      <p>Branch Id: ${userId}</p>
+      <p>Date: ${new Date().toLocaleDateString()}</p>
+      <p>Time: ${new Date().toLocaleTimeString()}</p>
+      <p class="font-bold">KITCHEN COPY</p>
+      ${kot ? `<p>KOT Number: ${kot}</p>` : ''}
+    </div>
+    
+    <div class="divider"></div>
+    
+    ${cart.map(item => `
+      <div class="kitchen-item">
+        <span class="font-bold">${item.quantity}x</span>
+        <span>${item.name}</span>
+      </div>
+      ${item.addons?.length ? 
+        item.addons.map(addon => `
+          <div class="kitchen-addon">
+            ${addon.addonName} x ${addon.addonQuantity}
+          </div>
+        `).join('') : ''
+      }
+    `).join('')}
+  `;
+  
   await printDocument(content);
 };
   // Function for customer bill (Print 1)
@@ -221,12 +330,7 @@ const printKitchenOrderDesktop = async (kot: number | undefined) => {
   }
   else {
     // Print both documents with minimal delay
-    await Promise.all([
-      printCustomerBillDesktop(billNo),
-      new Promise(resolve => setTimeout(resolve, 100)).then(() => 
-        printKitchenOrderDesktop(kot)
-      )
-    ]);
+  await printCombinedBillDesktop(billNo,kot)
   }
     } catch {
       toast({
@@ -236,15 +340,15 @@ const printKitchenOrderDesktop = async (kot: number | undefined) => {
       });
     }
   };
-  const cleanup = () => {
-    if (printFrame) {
-      document.body.removeChild(printFrame);
-      printFrame = null;
-    }
-  };
-  useEffect(() => {
-    return () => cleanup();
-  }, []);
+  // const cleanup = () => {
+  //   if (printFrame) {
+  //     document.body.removeChild(printFrame);
+  //     printFrame = null;
+  //   }
+  // };
+  // useEffect(() => {
+  //   return () => cleanup();
+  // }, []);
   // useEffect for handling kotAction
 useEffect(() => {
   const handleKotAction = async () => {
