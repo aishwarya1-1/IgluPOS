@@ -200,8 +200,12 @@ const printKitchenOrderDesktop = async (kot: number | undefined) => {
   
   await printDocument(content);
 };
-
 const printCombinedBillDesktop = async (billNo: string | null, kot: number | undefined) => {
+  // Define ESC/POS commands for thermal printers
+
+  const GS = '\x1D';
+  const CUT_PAPER = GS + 'V' + '\x00';
+  
   const content = `
     <!-- Customer Copy -->
     <div class="text-center">
@@ -235,8 +239,8 @@ const printCombinedBillDesktop = async (billNo: string | null, kot: number | und
       Thank you for your purchase!
     </div>
     
-    <!-- Page Break for Cut -->
-    <div class="page-break"></div>
+    <!-- Paper Cut Command -->
+    <pre style="visibility: hidden;">${CUT_PAPER}</pre>
     
     <!-- Kitchen Copy -->
     <div class="text-center">
@@ -267,6 +271,7 @@ const printCombinedBillDesktop = async (billNo: string | null, kot: number | und
   
   await printDocument(content);
 };
+
   // Function for customer bill (Print 1)
   const printCustomerBill = async (billNo: string | null) => {
     try {
