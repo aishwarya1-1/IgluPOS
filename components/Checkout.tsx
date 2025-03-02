@@ -463,7 +463,8 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
       console.log("Before printing customer bill...");
       await printCustomerBill(userOrderId);
      console.log("KOT order deleted, invalidating cache...");
-        queryClient.invalidateQueries({ queryKey: ["kot-data", userId] });
+       await  queryClient.invalidateQueries({ queryKey: ["kot-data", userId] });
+       await  queryClient.refetchQueries({ queryKey: ['kot-data', userId] });
 
     } else {
       if(isKOTPrintEnabled){
@@ -508,7 +509,8 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
             });
           }
           else{
-          queryClient.invalidateQueries({ queryKey: ['kot-data', userId]});
+            await queryClient.invalidateQueries({ queryKey: ['kot-data', userId] });
+           await  queryClient.refetchQueries({ queryKey: ['kot-data', userId] });
           if(isKOTPrintEnabled){
           printKitchenOrder(appendRes.kotNum);
           }
@@ -540,7 +542,8 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
             });
           }
           else{
-          queryClient.invalidateQueries({ queryKey: ['kot-data', userId] });
+          await queryClient.invalidateQueries({ queryKey: ['kot-data', userId] });
+          await queryClient.refetchQueries({ queryKey: ['kot-data', userId] });
           if(isKOTPrintEnabled){
           printKitchenOrder(editRes.kotNum);
           }
@@ -563,7 +566,8 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
       } else {
         const response = await createKOTBill([cart], totalCost, userId, customerName);
       if (response?.message === "KOT Bill Added") {
-        queryClient.invalidateQueries({ queryKey: ['kot-data', userId] });
+        await queryClient.invalidateQueries({ queryKey: ['kot-data', userId] });
+        await queryClient.refetchQueries({ queryKey: ['kot-data', userId] });
         if(isKOTPrintEnabled){
         printKitchenOrder(response.kotNum);
         }
