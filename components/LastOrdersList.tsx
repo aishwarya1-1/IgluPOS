@@ -30,7 +30,7 @@ export default function LastOrdersList({ orders }: { orders: RecentOrder[] }) {
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch  {
       toast({
         title: "Error",
         description: "Failed to update payment mode",
