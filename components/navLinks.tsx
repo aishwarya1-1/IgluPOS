@@ -9,6 +9,7 @@ import {
     ChartBarIcon,
 ArrowLeftCircleIcon,
     PlusCircleIcon,
+    ClockIcon
   } from '@heroicons/react/24/outline';
 
   const navItems = [
@@ -16,6 +17,7 @@ ArrowLeftCircleIcon,
     { name: 'Dashboard', path: '/billing/dashboard',icon :ChartBarIcon },
     { name: 'Add Item', path: '/billing/add-item' ,icon :PlusCircleIcon},
     { name: 'KOT', path: '/billing/kot' ,icon :ArrowLeftCircleIcon},
+    { name: 'Last Orders', path: '/billing/last-orders' ,icon :ClockIcon},
   ];
 
 export const  NavLinks = () => {

@@ -42,7 +42,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   const [isKOTDisabled, setIsKOTDisabled] = useState(false);
   const [isSaveAndPrintDisabled, setIsSaveAndPrintDisabled] = useState(false);
 
-    const [isKOTPrintEnabled, setIsKOTPrintEnabled] = useState(true);
+    const [isKOTPrintEnabled, setIsKOTPrintEnabled] = useState(false);
   
     const toggleKOTPrint = () => {
       setIsKOTPrintEnabled(!isKOTPrintEnabled);

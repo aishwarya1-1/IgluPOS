@@ -9,7 +9,7 @@ import {
   CreateAddon,
 } from "../validation_schemas";
 import { startOfDay, endOfDay, eachDayOfInterval, format } from "date-fns";
-import { AddonCategory, PrismaClient } from "@prisma/client";
+import { AddonCategory, PrismaClient, ModeOfPayment } from "@prisma/client";
 import { CartItem } from "@/context/CartContext";
 import bcrypt from "bcryptjs";
 import { signIn } from "@/auth";
@@ -76,6 +76,29 @@ export interface DetailedOrderItem {
 
       category: string;
     };
+  }[];
+}
+
+export interface RecentOrder {
+  id: number;
+  userOrderId: number;
+  orderDate: Date;
+  modeOfPayment: string;
+  orderType: string;
+  totalCost: number;
+  orderItems: {
+    quantity: number;
+    itemCost: number;
+    iceCream: {
+      name: string;
+    };
+    addons: {
+      quantity: number;
+      priceAtTime: number;
+      addon: {
+        name: string;
+      };
+    }[];
   }[];
 }
 
@@ -1330,5 +1353,98 @@ export async function updateEmail(userId: string | undefined, email: string) {
   } catch (error) {
     console.error("Database Error:", error);
     return { success: false };
+  }
+}
+
+export async function getRecentOrders(userId: string | undefined) {
+  const result = createOrderSchema
+    .pick({ userId: true })
+    .safeParse({ userId: userId });
+
+  if (!result.success) {
+    throw new Error("User id validation failed");
+  }
+
+  const { userId: userIdVal } = result.data;
+
+  try {
+    const recentOrders = await prisma.order.findMany({
+      where: {
+        userId: userIdVal,
+        status: "SUCCESS",
+      },
+      select: {
+        id: true,
+        userOrderId: true,
+        orderDate: true,
+        modeOfPayment: true,
+        orderType: true,
+        totalCost: true,
+        orderItems: {
+          select: {
+            quantity: true,
+            itemCost: true,
+            iceCream: {
+              select: {
+                name: true,
+              },
+            },
+            addons: {
+              select: {
+                quantity: true,
+                priceAtTime: true,
+                addon: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        orderDate: "desc", // Most recent orders first
+      },
+      take: 20, // Limit to last 20 orders
+    });
+
+    return recentOrders;
+  } catch (error) {
+    console.error("Database Error:", error);
+    throw new Error("Failed to fetch recent orders.");
+  }
+}
+
+export async function updatePaymentMode(
+  orderId: number,
+  userId: string | undefined,
+  newPaymentMode: ModeOfPayment
+) {
+  if (!userId) {
+    return { success: false, message: "User ID is required" };
+  }
+
+  try {
+    await prisma.order.update({
+      where: {
+        id: orderId,
+        userId: parseInt(userId),
+      },
+      data: {
+        modeOfPayment: newPaymentMode,
+      },
+    });
+
+    return {
+      success: true,
+      message: "Payment mode updated successfully",
+    };
+  } catch (error) {
+    console.error("Failed to update payment mode:", error);
+    return {
+      success: false,
+      message: "Failed to update payment mode",
+    };
   }
 }
