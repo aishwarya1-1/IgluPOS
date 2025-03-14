@@ -6,12 +6,13 @@ import {useQuery} from '@tanstack/react-query'
 import { TrashIcon, PlusIcon, XMarkIcon } from '@heroicons/react/20/solid'
 
 import {  getAdonsData} from '../app/lib/actions'
+import { useUser } from '@/context/UserContext'
 
 
 
 
-const fetchAddons = async () => {
-  const result = await getAdonsData()
+const fetchAddons = async (userId:string) => {
+  const result = await getAdonsData(userId)
   // Ensure we return a plain object
   return {
     ...result,
@@ -20,7 +21,7 @@ const fetchAddons = async () => {
 }
 
 export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
-
+const {userId} =useUser()
   const { cart, incrementItem, decrementItem, removeItem, addAddonToIcecream, decrementAddon, calculateTotalWithAddons ,removeAddonFromIcecream,totalCost} = useCart()
   const [showAddons, setShowAddons] = useState<{ [key: number]: boolean }>({})
   const [addonType, setAddonType] = useState<{ [key: number]: string | null }>({})
@@ -32,7 +33,7 @@ export default function Cart({ cartErrors }: { cartErrors?: string[] | null }) {
 
   } = useQuery({
     queryKey: ['addons'],
-    queryFn: fetchAddons,
+    queryFn: () => fetchAddons(userId ?? ''),
     staleTime: 1000 * 60 * 60 * 12, // 12 hours
     gcTime: 1000 * 60 * 60 * 24
   })

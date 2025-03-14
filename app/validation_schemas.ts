@@ -30,6 +30,12 @@ export const registerUserSchema = z.object({
   username: z.string().nonempty("Username is required"),
 
   password: z.string().nonempty("Password is required"),
+  address: z
+    .string()
+    .max(200, "Address cannot exceed 200 characters")
+    .nonempty("Store address is required"),
+
+  gstNumber: z.string().nonempty("GST number is required"),
 });
 
 const AddonItemSchema = z.object({
@@ -37,6 +43,16 @@ const AddonItemSchema = z.object({
   addonName: z.string(),
   addonPrice: z.number(),
   addonQuantity: z.number(),
+});
+
+export const createEmployeeSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  phoneNumber: z
+    .string()
+    .regex(/^\d{10}$/, "Phone number must be exactly 10 digits"),
+  loginId: z.number(),
 });
 
 const CartItemSchema = z.object({
@@ -54,7 +70,7 @@ export const createOrderSchema = z.object({
   orderType: z.enum(["DineIn", "TakeAway", "Delivery"], {
     message: "Please select the Order Type",
   }),
-  modeOfPayment: z.enum(["Cash", "Card", "UPI"], {
+  modeOfPayment: z.enum(["Cash", "Card", "UPI", "PartPay"], {
     message: "Please select a payment method.",
   }),
   userId: z.coerce.number(),
@@ -100,3 +116,21 @@ export type editIceCream = {
   category: string;
   cost: number;
 };
+export const editEmployeeSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  phoneNumber: z
+    .string()
+    .regex(/^\d{10}$/, "Phone number must be exactly 10 digits"),
+});
+
+// Validation schema for password reset
+export const resetPasswordSchema = z.object({
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+export const updateProfile = z.object({
+  email: z.string().email("Invalid email address"),
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  address: z.string().optional(),
+  gstNumber: z.string().optional(),
+});

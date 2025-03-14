@@ -6,6 +6,8 @@ export const useKOTData = (userId: string) => {
     queryKey: ["kot-data", userId],
     queryFn: () => fetchKOTData(userId),
     enabled: !!userId,
-    staleTime: 1000 * 10, // 30 seconds
+    staleTime: 1000 * 50, // 30 seconds
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 };

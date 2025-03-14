@@ -1,4 +1,4 @@
-import { getTodaySalesGroupedByPayment } from '@/app/lib/actions';
+import { getTodaySalesGroupedByPayment, getPreviousDaySalesGroupedByPayment } from '@/app/lib/actions';
 import { auth } from '@/auth';
 import {
   BanknotesIcon,
@@ -13,13 +13,24 @@ const iconMap = {
 
 export default async function CardWrapper() {
   const session = await auth(); 
-  const userId = session?.user?.id;
+  const userId = session?.user?.storeId;
   
-  let totalGroup: { modeOfPayment: string, totalSales: number }[];
-  let totalSalesSum;
+  let todayGroup, yesterdayGroup;
+  let todaySalesSum, yesterdaySalesSum;
+
   try {
-    totalGroup = await getTodaySalesGroupedByPayment(userId);
-    totalSalesSum = totalGroup.reduce((acc, curr) => acc + curr.totalSales, 0);
+    // Fetch both today's and yesterday's data
+    const [todayData, yesterdayData] = await Promise.all([
+      getTodaySalesGroupedByPayment(userId),
+      getPreviousDaySalesGroupedByPayment(userId)
+    ]);
+
+    todayGroup = todayData;
+    yesterdayGroup = yesterdayData;
+
+    todaySalesSum = todayGroup.reduce((acc, curr) => acc + curr.totalSales, 0);
+    yesterdaySalesSum = yesterdayGroup.reduce((acc, curr) => acc + curr.totalSales, 0);
+
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
@@ -27,12 +38,18 @@ export default async function CardWrapper() {
   }
   
   return (
-    <div className="w-full max-w-md mx-auto">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-4xl mx-auto">
       <Card 
         title="Today's Sales" 
-        value={totalSalesSum} 
+        value={todaySalesSum} 
         type="collected" 
-        paymentBreakdown={totalGroup}
+        paymentBreakdown={todayGroup}
+      />
+      <Card 
+        title="Yesterday's Sales" 
+        value={yesterdaySalesSum} 
+        type="collected" 
+        paymentBreakdown={yesterdayGroup}
       />
     </div>
   );

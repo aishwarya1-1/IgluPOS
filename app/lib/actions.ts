@@ -7,16 +7,34 @@ import {
   CreateIcecream,
   createAddonSchema,
   CreateAddon,
+  createEmployeeSchema,
+  editEmployeeSchema,
+  resetPasswordSchema,
+  updateProfile,
 } from "../validation_schemas";
 import { startOfDay, endOfDay, eachDayOfInterval, format } from "date-fns";
-import { AddonCategory, PrismaClient, ModeOfPayment } from "@prisma/client";
+import {
+  AddonCategory,
+  PrismaClient,
+  ModeOfPayment,
+  Prisma,
+  DiscountType,
+} from "@prisma/client";
 import { CartItem } from "@/context/CartContext";
-import bcrypt from "bcryptjs";
+
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
 const prisma = new PrismaClient();
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+
+import crypto from "crypto";
+import { JsonValue } from "@prisma/client/runtime/library";
+import { z } from "zod";
+// const ENCRYPTION_KEY =
+//   process.env.ENCRYPTION_KEY || "your-32-character-secret-key-here"; // 32 bytes
+// const IV_LENGTH = 16; // For AES, this is always 16
 
 export type State = {
   errors?: {
@@ -40,6 +58,8 @@ export type UserState = {
     email?: string[];
     username?: string[];
     password?: string[];
+    address?: string[];
+    gstNumber?: string[];
   };
   message?: string;
 };
@@ -52,12 +72,22 @@ export type BillState = {
   message: string;
 };
 
+export type EmployeeState = {
+  errors?: {
+    name?: string[];
+    password?: string[];
+    phoneNumber?: string[];
+    _form?: string[];
+  };
+  message: string;
+};
+
 export interface SalesDataEntry {
   date: string;
   totalSales: number;
   totalQuantity: number;
 }
-export interface DetailedOrderItem {
+export type DetailedOrderItem = {
   date: Date;
   orderId: number;
   modeOfPayment: string;
@@ -67,18 +97,42 @@ export interface DetailedOrderItem {
   cost: number;
   quantity: number;
   category: string;
+  billerName: string;
+  discount: string;
+  coupon: string;
+  subtotal: number;
+  addonTotal: number;
+  finalTotal: number;
+
   addons: {
     id: number;
     priceAtTime: number;
     quantity: number;
     addon: {
       name: string;
-
       category: string;
     };
   }[];
-}
+};
 
+export type Orders = {
+  Date: Date;
+  "Order ID": number;
+  "Mode of Payment": string;
+  "Payment Details": string;
+  "Order Type": string;
+  "Biller Name": string;
+  Branch: string;
+  "Ice Creams": string;
+  "Has Addons": string;
+  "Sub Total": number;
+  Discount: string;
+  Coupon: string;
+  "Total After Discount": number;
+  "GST Rate": number;
+  "GST Amount": number;
+  "Final Total": number;
+};
 export interface RecentOrder {
   id: number;
   userOrderId: number;
@@ -86,6 +140,15 @@ export interface RecentOrder {
   modeOfPayment: string;
   orderType: string;
   totalCost: number;
+  paymentDetails: JsonValue;
+  discount?: {
+    type: DiscountType;
+    value: number;
+  } | null;
+  coupon?: {
+    type: DiscountType;
+    value: number;
+  } | null;
   orderItems: {
     quantity: number;
     itemCost: number;
@@ -102,14 +165,20 @@ export interface RecentOrder {
   }[];
 }
 
-export async function createIcecream(prevState: State, formData: FormData) {
+export async function createIcecream(
+  userId: string | undefined,
+  prevState: State,
+  formData: FormData
+) {
   console.log("formData is", formData);
   const validatedFields = createIceCreamSchema.safeParse({
     name: formData.get("name"),
     categoryId: formData.get("categoryId"),
     cost: formData.get("cost"),
   });
-
+  if (!userId) {
+    return { message: "User ID is required" };
+  }
   if (!validatedFields.success) {
     return {
       errors: validatedFields.error.flatten().fieldErrors,
@@ -125,6 +194,7 @@ export async function createIcecream(prevState: State, formData: FormData) {
         name,
         categoryId: categoryId,
         cost,
+        loginId: parseInt(userId),
       },
     });
 
@@ -146,7 +216,7 @@ export async function createIcecream(prevState: State, formData: FormData) {
 
 export async function UpdateIcecream(
   id: number,
-  userId: string,
+
   prevState: State,
   formData: FormData
 ) {
@@ -185,7 +255,11 @@ export async function UpdateIcecream(
   redirect("/billing");
 }
 //create addon
-export async function createAddon(prevState: AddonState, formData: FormData) {
+export async function createAddon(
+  userId: string,
+  prevState: AddonState,
+  formData: FormData
+) {
   const validatedFields = createAddonSchema.safeParse({
     name: formData.get("name"),
     category: formData.get("category"),
@@ -206,6 +280,7 @@ export async function createAddon(prevState: AddonState, formData: FormData) {
         name,
         category: category as AddonCategory,
         price: price,
+        loginId: parseInt(userId),
       },
     });
 
@@ -225,17 +300,10 @@ export async function createAddon(prevState: AddonState, formData: FormData) {
 //edit addon
 export async function UpdateAddon(
   id: number,
-  userId: string,
+
   prevState: AddonState,
   formData: FormData
 ) {
-  // const iceCreamInKOT = await searchKOT(id, userId, "addon");
-  // if (iceCreamInKOT) {
-  //   return {
-  //     message: "Item in KOT. Please clear the KOT before Updating.",
-  //     errors: {},
-  //   };
-  // }
   const validatedFields = createAddonSchema.safeParse({
     name: formData.get("name"),
     category: formData.get("category"),
@@ -272,11 +340,14 @@ export async function UpdateAddon(
 }
 
 //getIcecream
-export async function getIceCreamData() {
+export async function getIceCreamData(userId: string) {
   try {
     // await delay(500);
     console.log("icecreams fetched");
     const iceCreams: CreateIcecream[] = await prisma.iceCream.findMany({
+      where: {
+        loginId: parseInt(userId), // Filter by loginId
+      },
       select: {
         id: true,
         name: true,
@@ -302,10 +373,13 @@ export async function getIceCreamData() {
     };
   }
 }
-export async function getAdonsData() {
+export async function getAdonsData(userId: string) {
   try {
     console.log("addons fetched");
     const addons: CreateAddon[] = await prisma.addon.findMany({
+      where: {
+        loginId: parseInt(userId), // Filter by loginId
+      },
       select: {
         id: true,
         name: true,
@@ -369,6 +443,8 @@ export async function registerUser(prevState: UserState, formData: FormData) {
     email: formData.get("email"),
     username: formData.get("username"),
     password: formData.get("password"),
+    address: formData.get("address"),
+    gstNumber: formData.get("gstNumber"),
   });
   if (!validatedFields.success) {
     return {
@@ -376,16 +452,19 @@ export async function registerUser(prevState: UserState, formData: FormData) {
       message: "",
     };
   }
-  const { email, username, password } = validatedFields.data;
+  const { email, username, password, address, gstNumber } =
+    validatedFields.data;
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const encryptedPassword = await encrypt(password);
   try {
     // Create a new ice cream entry in the database
     await prisma.login.create({
       data: {
         email,
         username,
-        password: hashedPassword,
+        password: encryptedPassword,
+        address, // Add address field
+        gstNumber,
         userOrderCounter: {
           create: {
             counter: 0, // Initial counter value
@@ -397,7 +476,7 @@ export async function registerUser(prevState: UserState, formData: FormData) {
     });
 
     return {
-      message: "Successfully Regsitered",
+      message: "Successfully Registered",
       success: true,
     };
   } catch (error) {
@@ -421,23 +500,99 @@ export async function registerUser(prevState: UserState, formData: FormData) {
 }
 
 //authenticate
-export async function authenticate(
+export async function authenticateStore(
   prevState: string | undefined,
   formData: FormData
 ) {
   try {
-    await signIn("credentials", formData);
+    // Add role to the form data
+    const userType = "store";
+
+    const response = await signIn("credentials", {
+      username: formData.get("username") as string,
+      password: formData.get("password") as string,
+      userType,
+      redirect: false,
+    });
+
+    // Check if authentication was successful
+    if (response?.error) {
+      return "Invalid store admin credentials.";
+    }
+
+    // If successful, redirect to admin dashboard
+    redirect("/admin");
   } catch (error) {
     if (error instanceof AuthError) {
       switch (error.type) {
         case "CredentialsSignin":
-          return "Invalid credentials.";
+          return "Invalid store admin credentials.";
         default:
           return "Something went wrong.";
       }
     }
     throw error;
   }
+}
+
+// Function for authenticating employees
+export async function authenticateEmployee(
+  prevState: string | undefined,
+  formData: FormData
+) {
+  try {
+    // Add role to the form data
+    const userType = "employee";
+
+    const response = await signIn("credentials", {
+      username: formData.get("username") as string,
+      password: formData.get("password") as string,
+      userType,
+      redirect: false,
+    });
+
+    // Check if authentication was successful
+    if (response?.error) {
+      return "Invalid employee credentials.";
+    }
+
+    // If successful, redirect to billing page
+    redirect("/billing");
+  } catch (error) {
+    if (error instanceof AuthError) {
+      switch (error.type) {
+        case "CredentialsSignin":
+          return "Invalid employee credentials.";
+        default:
+          return "Something went wrong.";
+      }
+    }
+    throw error;
+  }
+}
+//discountid
+async function getDiscountID(
+  type: "FLAT" | "PERCENTAGE",
+  value: number,
+  tx: TransactionClient
+) {
+  // Check if the discount already exists
+  const existingDiscount = await tx.discount.findUnique({
+    where: { type_value: { type, value } },
+  });
+
+  if (existingDiscount) {
+    console.log("Discount already exists:", existingDiscount);
+    return existingDiscount.id;
+  }
+
+  // Create new discount only if it doesn't exist
+  const newDiscount = await tx.discount.create({
+    data: { type, value },
+  });
+
+  console.log("New discount created:", newDiscount);
+  return newDiscount.id;
 }
 
 //billing
@@ -448,7 +603,14 @@ export async function createBill(
   prevState: BillState,
   formData: FormData,
   kotActionState: string | undefined,
-  kotid: number | undefined
+  kotid: number | undefined,
+  billerName: string | undefined,
+  partPayment: { Cash: number; UPI: number; Card: number },
+  currentDiscount: {
+    type: "PERCENTAGE" | "FLAT";
+    value: number;
+    id?: number;
+  } | null
 ) {
   let userOrderId: number | null = null;
   let kotSave: number | null = null;
@@ -476,6 +638,22 @@ export async function createBill(
     totalCost: total,
     userId: user,
   } = validatedFields.data;
+  const paymentDetails =
+    modeOfPayment === "PartPay" ? partPayment : Prisma.JsonNull;
+  let couponId: number | null;
+  let discountId: number | null;
+  let getDiscount = false;
+
+  if (!currentDiscount) {
+    couponId = null;
+    discountId = null;
+  } else if (currentDiscount.id) {
+    couponId = currentDiscount.id;
+    discountId = null;
+  } else {
+    couponId = null;
+    getDiscount = true;
+  }
 
   try {
     const result = await prisma.$transaction(
@@ -501,15 +679,29 @@ export async function createBill(
         if (userOrderId === null) {
           throw new Error("Failed to generate order ID");
         }
-
+        if (!billerName) {
+          billerName = "Failed to fetch";
+        }
+        //if getdiscount is true
+        if (getDiscount && currentDiscount) {
+          discountId = await getDiscountID(
+            currentDiscount.type,
+            currentDiscount.value,
+            tx
+          );
+        }
         // Create the new order using transaction context
         const newOrder = await tx.order.create({
           data: {
             userOrderId,
             modeOfPayment,
             orderType,
+            billerName,
             totalCost: total,
             userId: user,
+            paymentDetails,
+            discountId,
+            couponId,
           },
         });
 
@@ -697,11 +889,16 @@ export async function getSalesByDate(
 
 //getReport
 
+type ReportData = {
+  detailedItems: DetailedOrderItem[];
+  orders: Orders[];
+};
+
 export async function getReport(
   startDate: string,
   endDate: string,
   userId: string | undefined
-) {
+): Promise<ReportData> {
   const result = dateRangeSchema.safeParse({
     startDate: startDate,
     endDate: endDate,
@@ -734,6 +931,22 @@ export async function getReport(
         orderDate: true,
         modeOfPayment: true,
         orderType: true,
+        billerName: true,
+        paymentDetails: true,
+        totalCost: true,
+        discount: {
+          select: {
+            type: true,
+            value: true,
+          },
+        },
+        coupon: {
+          select: {
+            type: true,
+            code: true,
+            value: true,
+          },
+        },
         user: {
           select: {
             username: true,
@@ -770,31 +983,169 @@ export async function getReport(
         },
       },
     });
+    const ordersData: Orders[] = orders.map((order) => {
+      // Calculate subtotal and check for addons
+      const { subtotal, hasAddons } = order.orderItems.reduce(
+        (acc, item) => {
+          // Add icecream cost
+          acc.subtotal += item.itemCost * item.quantity;
+
+          // Calculate addons total and check if addons exist
+          const itemAddonTotal = item.addons.reduce(
+            (sum, addon) => sum + addon.priceAtTime * addon.quantity,
+            0
+          );
+
+          acc.subtotal += itemAddonTotal;
+          if (item.addons.length > 0) {
+            acc.hasAddons = true;
+          }
+
+          return acc;
+        },
+        { subtotal: 0, hasAddons: false }
+      );
+      const gstRate = parseFloat(process.env.GST ?? "0.0");
+      const totalAfterDiscount = order.totalCost;
+      const gstAmount = totalAfterDiscount * gstRate;
+
+      // Format payment details
+      const paymentDetails =
+        order.modeOfPayment === "PartPay" && order.paymentDetails
+          ? `Cash: ${
+              (
+                order.paymentDetails as {
+                  UPI?: number;
+                  Card?: number;
+                  Cash?: number;
+                }
+              ).Cash || 0
+            }, UPI: ${
+              (
+                order.paymentDetails as {
+                  UPI?: number;
+                  Card?: number;
+                  Cash?: number;
+                }
+              ).UPI || 0
+            }, Card: ${
+              (
+                order.paymentDetails as {
+                  UPI?: number;
+                  Card?: number;
+                  Cash?: number;
+                }
+              ).Card || 0
+            }`
+          : "-";
+
+      return {
+        Date: order.orderDate,
+        "Order ID": order.id,
+        "Mode of Payment": order.modeOfPayment,
+        "Payment Details": paymentDetails,
+        "Order Type": order.orderType,
+        "Biller Name": order.billerName,
+        Branch: order.user.username,
+        "Ice Creams": order.orderItems
+          .map((icecream) => `${icecream.iceCream.name} (${icecream.quantity})`)
+          .join("; "),
+        "Has Addons": hasAddons ? "Yes" : "No",
+        "Sub Total": subtotal,
+        Discount: order.discount
+          ? `${
+              order.discount.type === "FLAT"
+                ? `₹${order.discount.value}`
+                : `${order.discount.value}%`
+            }`
+          : "-",
+        Coupon: order.coupon
+          ? `${order.coupon.value}${
+              order.coupon.type === "FLAT" ? "₹" : "%"
+            } (${order.coupon.code})`
+          : "-",
+        "Total After Discount": totalAfterDiscount,
+        "GST Rate": gstRate,
+        "GST Amount": gstAmount,
+        "Final Total": totalAfterDiscount + gstAmount,
+      };
+    });
 
     const detailedOrderItems: DetailedOrderItem[] = orders.flatMap((order) =>
-      order.orderItems.map((item) => ({
-        date: order.orderDate,
-        orderId: order.id,
-        modeOfPayment: order.modeOfPayment,
-        orderType: order.orderType,
-        username: order.user.username,
-        iceCreamName: item.iceCream.name,
-        cost: item.itemCost,
-        quantity: item.quantity,
-        category: item.iceCream.category.name,
-        addons: item.addons.map((addon) => ({
-          id: addon.addonId,
-          priceAtTime: addon.priceAtTime,
-          quantity: addon.quantity,
-          addon: {
-            name: addon.addon.name,
-            category: addon.addon.category,
-          },
-        })),
-      }))
+      order.orderItems.map((item) => {
+        // Calculate addon total
+        const addonTotal = item.addons.reduce(
+          (sum, addon) => sum + addon.priceAtTime * addon.quantity,
+          0
+        );
+
+        // Calculate subtotal
+        const subtotal = item.itemCost * item.quantity + addonTotal;
+
+        // Calculate discount amount
+        let discountAmount = 0;
+        if (order.discount) {
+          discountAmount =
+            order.discount.type === "FLAT"
+              ? order.discount.value
+              : (subtotal * order.discount.value) / 100;
+        } else if (order.coupon) {
+          discountAmount =
+            order.coupon.type === "FLAT"
+              ? order.coupon.value
+              : (subtotal * order.coupon.value) / 100;
+        }
+
+        // Format discount/coupon information
+        let discountInfo = "";
+        if (order.discount) {
+          discountInfo = `${
+            order.discount.type === "FLAT"
+              ? `₹${order.discount.value}`
+              : `${order.discount.value}%`
+          }`;
+        }
+        let couponInfo = "-";
+        if (order.coupon?.code) {
+          couponInfo = `${order.coupon.value}${
+            order.coupon.type === "FLAT" ? "₹" : "%"
+          } (${order.coupon.code})`;
+        }
+
+        return {
+          date: order.orderDate,
+          orderId: order.id,
+          modeOfPayment: order.modeOfPayment,
+          orderType: order.orderType,
+          username: order.user.username,
+          billerName: order.billerName,
+          iceCreamName: item.iceCream.name,
+          cost: item.itemCost,
+          quantity: item.quantity,
+          addonTotal: addonTotal,
+          subtotal: subtotal,
+          discount: discountInfo || "-",
+          coupon: couponInfo,
+          finalTotal: subtotal - discountAmount,
+          category: item.iceCream.category.name,
+
+          addons: item.addons.map((addon) => ({
+            id: addon.addonId,
+            priceAtTime: addon.priceAtTime,
+            quantity: addon.quantity,
+            addon: {
+              name: addon.addon.name,
+              category: addon.addon.category,
+            },
+          })),
+        };
+      })
     );
     // console.log(detailedOrderItems);
-    return detailedOrderItems;
+    return {
+      detailedItems: detailedOrderItems,
+      orders: ordersData,
+    };
   } catch (error) {
     console.error("Database Error:", error);
     throw new Error("Failed to fetch Detailed Order Items.");
@@ -805,43 +1156,67 @@ export async function getReport(
 export async function getTodaySalesGroupedByPayment(
   userId: string | undefined
 ) {
-  const resultuser = createOrderSchema
-    .pick({ userId: true })
-    .safeParse({ userId: userId });
-
-  if (!resultuser.success) {
-    throw new Error("User Id Validation failed ");
-  }
-
-  const { userId: userIdVal } = resultuser.data;
-  const todayStart = startOfDay(new Date());
-  const todayEnd = endOfDay(new Date());
-
   try {
-    const result = await prisma.order.groupBy({
-      by: ["modeOfPayment"],
-      _sum: {
-        totalCost: true,
-      },
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const orders = await prisma.order.findMany({
       where: {
-        userId: userIdVal,
+        userId: userId ? parseInt(userId) : undefined,
         orderDate: {
-          gte: todayStart,
-          lte: todayEnd,
+          gte: today,
         },
-        status: "SUCCESS", // Only count successful orders
+        status: "SUCCESS",
+      },
+      select: {
+        modeOfPayment: true,
+        totalCost: true,
+        paymentDetails: true,
       },
     });
 
-    const groupedSales = result.map((group) => ({
-      modeOfPayment: group.modeOfPayment,
-      totalSales: group._sum.totalCost || 0,
-    }));
+    // Initialize payment totals
+    const paymentTotals = {
+      UPI: 0,
+      Card: 0,
+      Cash: 0,
+    };
 
-    return groupedSales;
+    // Process each order
+    orders.forEach((order) => {
+      if (order.modeOfPayment === "PartPay" && order.paymentDetails) {
+        // For PartPay, parse the JSON and add to respective totals
+        const details = order.paymentDetails as {
+          UPI?: number;
+          Card?: number;
+          Cash?: number;
+        };
+
+        paymentTotals.UPI += details.UPI || 0;
+        paymentTotals.Card += details.Card || 0;
+        paymentTotals.Cash += details.Cash || 0;
+      } else {
+        // For direct payments, add the total to the respective mode
+        if (order.modeOfPayment === "UPI") {
+          paymentTotals.UPI += order.totalCost;
+        } else if (order.modeOfPayment === "Card") {
+          paymentTotals.Card += order.totalCost;
+        } else if (order.modeOfPayment === "Cash") {
+          paymentTotals.Cash += order.totalCost;
+        }
+      }
+    });
+
+    // Convert to the format expected by the Card component
+    return Object.entries(paymentTotals)
+      .map(([modeOfPayment, totalSales]) => ({
+        modeOfPayment,
+        totalSales,
+      }))
+      .filter((item) => item.totalSales > 0); // Optionally filter out zero values
   } catch (error) {
-    console.error("Database Error:", error);
-    throw new Error("Failed to fetch today's sales grouped by payment mode.");
+    console.error("Failed to fetch today's sales:", error);
+    throw new Error("Failed to fetch today's sales data");
   }
 }
 //kot order creation
@@ -1368,10 +1743,18 @@ export async function getRecentOrders(userId: string | undefined) {
   const { userId: userIdVal } = result.data;
 
   try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split("T")[0];
+
     const recentOrders = await prisma.order.findMany({
       where: {
         userId: userIdVal,
         status: "SUCCESS",
+        orderDate: {
+          gte: new Date(todayStr),
+          lt: new Date(new Date(todayStr).setDate(today.getDate() + 1)),
+        },
       },
       select: {
         id: true,
@@ -1380,6 +1763,19 @@ export async function getRecentOrders(userId: string | undefined) {
         modeOfPayment: true,
         orderType: true,
         totalCost: true,
+        paymentDetails: true,
+        discount: {
+          select: {
+            type: true,
+            value: true,
+          },
+        },
+        coupon: {
+          select: {
+            type: true,
+            value: true,
+          },
+        },
         orderItems: {
           select: {
             quantity: true,
@@ -1404,9 +1800,8 @@ export async function getRecentOrders(userId: string | undefined) {
         },
       },
       orderBy: {
-        orderDate: "desc", // Most recent orders first
+        orderDate: "desc",
       },
-      take: 20, // Limit to last 20 orders
     });
 
     return recentOrders;
@@ -1419,32 +1814,609 @@ export async function getRecentOrders(userId: string | undefined) {
 export async function updatePaymentMode(
   orderId: number,
   userId: string | undefined,
-  newPaymentMode: ModeOfPayment
+  newPaymentMode: ModeOfPayment,
+  paymentDetails?: { Cash: number; UPI: number; Card: number }
 ) {
-  if (!userId) {
-    return { success: false, message: "User ID is required" };
-  }
-
   try {
+    if (!userId) {
+      return { success: false, message: "User not authenticated" };
+    }
+
+    const updateData = {
+      modeOfPayment: newPaymentMode,
+      paymentDetails:
+        newPaymentMode === "PartPay" && paymentDetails
+          ? paymentDetails
+          : { set: null },
+    };
     await prisma.order.update({
       where: {
         id: orderId,
         userId: parseInt(userId),
       },
+      data: updateData,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update payment mode:", error);
+    return { success: false, message: "Failed to update payment mode" };
+  }
+}
+export async function encrypt(text: string) {
+  const iv = crypto.randomBytes(16); // IV must be 16 bytes
+
+  const keyHex = process.env.ENCRYPTION_KEY;
+  if (!keyHex) {
+    throw new Error("Missing ENCRYPTION_KEY in environment variables");
+  }
+
+  const key = Buffer.from(keyHex, "hex"); // Convert from hex to Buffer
+
+  if (key.length !== 32) {
+    throw new Error(`Invalid key length: ${key.length}. Expected 32 bytes.`);
+  }
+
+  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+  let encrypted = cipher.update(text, "utf8", "hex");
+  encrypted += cipher.final("hex");
+
+  return iv.toString("hex") + ":" + encrypted;
+}
+
+export async function decrypt(text: string) {
+  const [ivHex, encryptedHex] = text.split(":");
+  const iv = Buffer.from(ivHex, "hex");
+  const encrypted = Buffer.from(encryptedHex, "hex");
+
+  const keyHex = process.env.ENCRYPTION_KEY;
+  if (!keyHex) {
+    throw new Error("Missing ENCRYPTION_KEY in environment variables");
+  }
+
+  const key = Buffer.from(keyHex, "hex");
+
+  if (key.length !== 32) {
+    throw new Error(`Invalid key length: ${key.length}. Expected 32 bytes.`);
+  }
+
+  const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
+  let decrypted = decipher.update(encrypted);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+
+  return decrypted.toString();
+}
+
+export async function createEmployee(
+  prevState: EmployeeState,
+  formData: FormData
+) {
+  console.log("creating empyye");
+  const validatedFields = createEmployeeSchema.safeParse({
+    name: formData.get("name"),
+    password: formData.get("password"),
+    phoneNumber: formData.get("phoneNumber"),
+    loginId: Number(formData.get("loginId")),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "Invalid fields",
+    } as EmployeeState;
+  }
+
+  const { name, password, phoneNumber, loginId } = validatedFields.data;
+  const encryptedPassword = await encrypt(password);
+
+  try {
+    await prisma.employee.create({
       data: {
-        modeOfPayment: newPaymentMode,
+        name,
+        password: encryptedPassword,
+        phoneNumber,
+        loginId,
+      },
+    });
+
+    return {
+      message: "Employee created successfully",
+    } as EmployeeState;
+  } catch (error) {
+    console.error("Error creating employee:", error);
+    return {
+      errors: {
+        _form: ["Failed to create employee"],
+      },
+      message: "Failed to create employee",
+    } as EmployeeState;
+  }
+}
+
+export async function getEmployees(loginId: number) {
+  try {
+    const employees = await prisma.employee.findMany({
+      where: {
+        loginId: loginId,
+      },
+      select: {
+        id: true,
+        name: true,
+        phoneNumber: true,
+        password: true,
+      },
+    });
+
+    const decryptedEmployees = await Promise.all(
+      employees.map(async (emp) => ({
+        ...emp,
+        password: await decrypt(emp.password), // ✅ Waits for decryption
+      }))
+    );
+
+    return decryptedEmployees;
+  } catch (error) {
+    console.error("Error fetching employees:", error);
+    throw new Error("Failed to fetch employees");
+  }
+}
+export async function updateEmployee(employeeId: number, formData: FormData) {
+  const validatedFields = editEmployeeSchema.safeParse({
+    name: formData.get("name"),
+    phoneNumber: formData.get("phoneNumber"),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "Validation Failure",
+    };
+  }
+
+  const { name, phoneNumber } = validatedFields.data;
+
+  try {
+    await prisma.employee.update({
+      where: { id: employeeId },
+      data: {
+        name,
+        phoneNumber,
+      },
+    });
+
+    revalidatePath("/admin");
+    return { message: "Employee updated successfully" };
+  } catch {
+    return {
+      message: "Database Error: Failed to update employee.",
+    };
+  }
+}
+
+export async function resetEmployeePassword(
+  employeeId: number,
+  formData: FormData
+) {
+  const validatedFields = resetPasswordSchema.safeParse({
+    password: formData.get("password"),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "Failed to reset password",
+    };
+  }
+
+  const { password } = validatedFields.data;
+  const encryptedPassword = await encrypt(password);
+
+  try {
+    await prisma.employee.update({
+      where: { id: employeeId },
+      data: {
+        password: encryptedPassword,
+      },
+    });
+
+    revalidatePath("/admin");
+    return { message: "Password reset successfully" };
+  } catch {
+    return {
+      message: "Database Error: Failed to reset password.",
+    };
+  }
+}
+
+export async function deleteEmployee(employeeId: number) {
+  try {
+    await prisma.employee.delete({
+      where: { id: employeeId },
+    });
+
+    revalidatePath("/admin");
+    return { message: "Employee deleted successfully" };
+  } catch {
+    return {
+      message: "Database Error: Failed to delete employee.",
+    };
+  }
+}
+type IceCreamInputa = {
+  name: string;
+  categoryId: number;
+  cost: number;
+  loginId: number;
+};
+export async function insertIceCreams(iceCreams: IceCreamInputa[]) {
+  try {
+    await prisma.iceCream.createMany({
+      data: iceCreams,
+    });
+
+    revalidatePath("/admin/ice-creams");
+    return { success: true, message: "Ice creams inserted successfully!" };
+  } catch (error) {
+    console.error("Failed to insert ice creams:", error);
+    return { success: false, message: "Failed to insert ice creams." };
+  }
+}
+
+export async function validateCoupon(userId: string, couponCode: string) {
+  try {
+    // Validate input
+    if (!couponCode) {
+      throw new Error("Coupon Code are required");
+    }
+
+    // Find the coupon for the specific login
+    const coupon = await prisma.coupon.findFirst({
+      where: {
+        code: couponCode,
+        loginId: parseInt(userId),
+      },
+    });
+
+    // Check if coupon exists
+    if (!coupon) {
+      throw new Error("Coupon not found");
+    }
+
+    // Check expiry date
+    if (coupon.expiryDate && coupon.expiryDate < new Date()) {
+      throw new Error("Coupon has expired");
+    }
+
+    // Check max usage
+    if (coupon.maxUsage !== null && coupon.maxUsage <= 0) {
+      throw new Error("Coupon has reached its maximum usage limit");
+    }
+
+    // Update the coupon's max usage
+    await prisma.coupon.update({
+      where: { id: coupon.id },
+      data: {
+        maxUsage: coupon.maxUsage !== null ? coupon.maxUsage - 1 : null,
+      },
+    });
+
+    // Return coupon details
+    return {
+      couponId: coupon.id,
+      type: coupon.type,
+      value: coupon.value,
+    };
+  } catch (error) {
+    // Log the error for server-side tracking
+    console.error("Coupon Validation Error:", error);
+
+    // Throw a specific error message
+    if (error instanceof Error) {
+      throw new Error(error.message);
+    }
+
+    // Fallback error message
+    throw new Error("An unexpected error occurred during coupon validation");
+  }
+}
+
+export async function createCoupon(formData: {
+  code: string;
+  type: "PERCENTAGE" | "FLAT";
+  value: number;
+  maxUsage?: number;
+  expiryDate?: Date;
+  loginId: number;
+}) {
+  try {
+    const coupon = await prisma.coupon.create({
+      data: {
+        ...formData,
+        expiryDate: formData.expiryDate
+          ? new Date(formData.expiryDate)
+          : undefined,
+      },
+    });
+
+    revalidatePath("/coupons");
+    return { success: true, coupon };
+  } catch (error) {
+    console.error("Error creating coupon:", error);
+    return { success: false, error: "Failed to create coupon" };
+  }
+}
+
+export async function updateCoupon(
+  id: number,
+  formData: {
+    code?: string;
+    type?: "PERCENTAGE" | "FLAT";
+    value?: number;
+    maxUsage?: number;
+    expiryDate?: Date;
+  }
+) {
+  try {
+    const coupon = await prisma.coupon.update({
+      where: { id },
+      data: {
+        ...formData,
+        expiryDate: formData.expiryDate
+          ? new Date(formData.expiryDate)
+          : undefined,
+      },
+    });
+
+    revalidatePath("/coupons");
+    return { success: true, coupon };
+  } catch (error) {
+    console.error("Error updating coupon:", error);
+    return { success: false, error: "Failed to update coupon" };
+  }
+}
+
+export async function deleteCoupon(id: number) {
+  try {
+    await prisma.coupon.delete({
+      where: { id },
+    });
+
+    revalidatePath("/coupons");
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting coupon:", error);
+    return { success: false, error: "Failed to delete coupon" };
+  }
+}
+
+export async function getCoupons(userId: string) {
+  try {
+    const coupons = await prisma.coupon.findMany({
+      where: { loginId: parseInt(userId) },
+      orderBy: { expiryDate: "desc" },
+    });
+    return coupons;
+  } catch (error) {
+    console.error("Error fetching coupons:", error);
+    return [];
+  }
+}
+
+export async function getPreviousDaySalesGroupedByPayment(
+  userId: string | undefined
+) {
+  try {
+    // Get IST date for yesterday
+    const today = new Date();
+
+    today.setHours(0, 0, 0, 0);
+
+    // Get yesterday's start and end in IST
+    const yesterdayStart = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+    const yesterdayEnd = new Date(today.getTime());
+
+    const orders = await prisma.order.findMany({
+      where: {
+        userId: userId ? parseInt(userId) : undefined,
+        orderDate: {
+          gte: yesterdayStart,
+          lt: yesterdayEnd,
+        },
+        status: "SUCCESS",
+      },
+      select: {
+        modeOfPayment: true,
+        totalCost: true,
+        paymentDetails: true,
+      },
+    });
+
+    // Rest of the logic remains same as getTodaySalesGroupedByPayment
+    const paymentTotals = {
+      UPI: 0,
+      Card: 0,
+      Cash: 0,
+    };
+
+    orders.forEach((order) => {
+      if (order.modeOfPayment === "PartPay" && order.paymentDetails) {
+        const details = order.paymentDetails as {
+          UPI?: number;
+          Card?: number;
+          Cash?: number;
+        };
+
+        paymentTotals.UPI += details.UPI || 0;
+        paymentTotals.Card += details.Card || 0;
+        paymentTotals.Cash += details.Cash || 0;
+      } else {
+        if (order.modeOfPayment === "UPI") {
+          paymentTotals.UPI += order.totalCost;
+        } else if (order.modeOfPayment === "Card") {
+          paymentTotals.Card += order.totalCost;
+        } else if (order.modeOfPayment === "Cash") {
+          paymentTotals.Cash += order.totalCost;
+        }
+      }
+    });
+
+    return Object.entries(paymentTotals)
+      .map(([modeOfPayment, totalSales]) => ({
+        modeOfPayment,
+        totalSales,
+      }))
+      .filter((item) => item.totalSales > 0);
+  } catch (error) {
+    console.error("Failed to fetch yesterday's sales:", error);
+    throw new Error("Failed to fetch yesterday's sales data");
+  }
+}
+
+export async function getUserProfile(userId: number) {
+  try {
+    const user = await prisma.login.findUnique({
+      where: {
+        id: userId,
+      },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        address: true,
+        gstNumber: true,
+      },
+    });
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    return user;
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    throw new Error("Failed to fetch user profile");
+  }
+}
+export async function updateUserProfile(userId: number, formData: FormData) {
+  try {
+    // Extract and validate data
+    const validatedData = updateProfile.parse({
+      email: formData.get("email"),
+      username: formData.get("username"),
+      address: formData.get("address") || null,
+      gstNumber: formData.get("gstNumber") || null,
+    });
+
+    // Check if username is already taken by another user
+    if (validatedData.username) {
+      const existingUser = await prisma.login.findFirst({
+        where: {
+          username: validatedData.username,
+          NOT: {
+            id: userId,
+          },
+        },
+      });
+
+      if (existingUser) {
+        return {
+          success: false,
+          message: "Username is already taken",
+        };
+      }
+    }
+
+    // Update user profile
+    await prisma.login.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        email: validatedData.email,
+        username: validatedData.username,
+        address: validatedData.address,
+        gstNumber: validatedData.gstNumber,
       },
     });
 
     return {
       success: true,
-      message: "Payment mode updated successfully",
+      message: "Profile updated successfully",
     };
   } catch (error) {
-    console.error("Failed to update payment mode:", error);
+    console.error("Error updating user profile:", error);
+
+    if (error instanceof z.ZodError) {
+      const errorMessage = error.errors
+        .map((err) => `${err.path}: ${err.message}`)
+        .join(", ");
+      return {
+        success: false,
+        message: errorMessage,
+      };
+    }
+
     return {
       success: false,
-      message: "Failed to update payment mode",
+      message: "Failed to update profile",
+    };
+  }
+}
+
+/**
+ * Reset user password
+ */
+export async function resetUserPassword(userId: number, formData: FormData) {
+  const validationSchema = z
+    .object({
+      password: z.string().min(6, "Password must be at least 6 characters"),
+      confirmPassword: z.string(),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: "Passwords don't match",
+      path: ["confirmPassword"],
+    });
+
+  try {
+    // Extract and validate data
+    const validatedData = validationSchema.parse({
+      password: formData.get("password"),
+      confirmPassword: formData.get("confirmPassword"),
+    });
+
+    // Hash the password
+    const encryptedPassword = await encrypt(validatedData.password);
+
+    // Update user password
+    await prisma.login.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        password: encryptedPassword,
+      },
+    });
+
+    return {
+      success: true,
+      message: "Password reset successfully",
+    };
+  } catch (error) {
+    console.error("Error resetting user password:", error);
+
+    if (error instanceof z.ZodError) {
+      const errorMessage = error.errors
+        .map((err) => `${err.path}: ${err.message}`)
+        .join(", ");
+      return {
+        success: false,
+        message: errorMessage,
+      };
+    }
+
+    return {
+      success: false,
+      message: "Failed to reset password",
     };
   }
 }

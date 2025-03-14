@@ -7,7 +7,7 @@ import ErrorComponent from './ErrorComponent';
 // Main wrapper component to fetch data and render the PieChart
 export default async function PieWrapper() {
   const session = await auth(); 
-  const userId = session?.user?.id;
+  const userId = session?.user?.storeId;
 
 
 

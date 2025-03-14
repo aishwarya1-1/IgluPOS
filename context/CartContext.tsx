@@ -20,7 +20,11 @@ export interface CartItem extends IceCream {
   quantity: number;
   addons?: AddonItem[];
 }
-
+export interface Discount {
+  type: 'PERCENTAGE' | 'FLAT';
+  value: number;
+ id ?:number;
+}
 interface CartContextType {
   cart: CartItem[]
   totalCost: number;
@@ -34,13 +38,16 @@ interface CartContextType {
   decrementAddon: (itemId: number,addonId: number) => void;
   calculateTotalWithAddons: (iceCreamId: number) => number;
   removeAddonFromIcecream: (itemId: number, addonId: number) => void;
+  applyDiscount: (discount: Discount) => void;
+  removeDiscount: () => void;
+  currentDiscount : Discount | null
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([])
-
+  const [currentDiscount, setCurrentDiscount] = useState<Discount | null>(null)
   const calculateTotalWithAddons = (iceCreamId: number): number => {
     // Find the ice cream item in the cart
     const item = cart.find(item => item.id === iceCreamId);
@@ -60,11 +67,37 @@ export function CartProvider({ children }: { children: ReactNode }) {
     // Return the combined cost
     return baseCost + addonsCost;
   };
-  
+
+  const applyDiscount = (discount: Discount) => {
+    // Set the current discount
+    setCurrentDiscount(discount);
+  };
+
+  // New method to remove discount
+  const removeDiscount = () => {
+    setCurrentDiscount(null);
+  };
+
+  const calculateCartTotal = () => {
+    return cart.reduce((total, item) => {
+      return total + calculateTotalWithAddons(item.id);
+    }, 0);
+  };
   // Calculate the total cost for the entire cart
-  const totalCost = cart.reduce((total, item) => {
-    return total + calculateTotalWithAddons(item.id);
-  }, 0);
+  const totalCost = (() => {
+    const baseTotal = calculateCartTotal();
+    
+    // Apply discount if exists
+    if (currentDiscount) {
+      if (currentDiscount.type === 'PERCENTAGE') {
+        return baseTotal * (1 - currentDiscount.value / 100);
+      } else if (currentDiscount.type === 'FLAT') {
+        return Math.max(baseTotal - currentDiscount.value, 0);
+      }
+    }
+    
+    return baseTotal;
+  })();
   
 
   const addToCart = (item: IceCream) => {
@@ -215,6 +248,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         calculateTotalWithAddons,
         decrementAddon,
         removeAddonFromIcecream,
+        applyDiscount,
+        removeDiscount,
+        currentDiscount
       }}
     >
       {children}

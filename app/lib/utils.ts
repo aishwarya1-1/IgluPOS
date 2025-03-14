@@ -9,14 +9,21 @@ export interface TransformedOrderItem {
   "Mode of Payment": string;
   "Order Type": string;
   Branch: string;
+  "Biller Name": string;
   "Ice Cream Name": string;
+  Category: string;
   Cost: number;
   Quantity: number;
-  "Sub Total": number;
-  GST: number;
-  Category: string;
+
   Addons: string;
-  AddonsTotal: number;
+  "Addons Total": number;
+  "Sub Total": number;
+  Discount: string;
+  Coupon: string;
+  "Total After Discount": number;
+  "GST Rate": number;
+  "GST Amount": number;
+
   "Final Total": number;
 }
 

@@ -6,7 +6,7 @@ import { Button } from '@headlessui/react';
 import { format } from 'date-fns';
 import React, { useState } from 'react';
 import { DateRange } from 'react-day-picker';
-import { DetailedOrderItem } from '@/app/lib/actions';
+import { DetailedOrderItem ,Orders} from '@/app/lib/actions';
 
 type Addon = {
   id: number;
@@ -119,11 +119,8 @@ export function Report({ data }: { data: DateRange | undefined }) {
         };
     };
 
-    const generateCSV = (data: TransformedOrderItem[], analytics: AnalyticsResults): string => {
+    const generateDetailedCSV = (data: TransformedOrderItem[], analytics: AnalyticsResults): string => {
         let csvContent = "";
-
-        // Rest of the function remains the same...
-        // Note: The analytics parameter is now properly typed with AnalyticsResults
         
         // Detailed Orders Section
         csvContent += "DETAILED ORDERS\n";
@@ -133,16 +130,26 @@ export function Report({ data }: { data: DateRange | undefined }) {
             "Mode of Payment",
             "Order Type",
             "Branch",
+            "Biller Name",
             "Ice Cream Name",
+            "Category",
             "Cost",
             "Quantity",
-            "Sub Total",
-            "GST",
-            "Category",
+       
             "Addons",
-            "AddonsTotal",
+            "Addons Total",
+            "Sub Total",
+            "Discount",
+            "Coupon",
+            "Total After Discount",
+            "GST Rate",
+            "GST Amount",
             "Final Total",
+           
+     
         ];
+        
+        
 
         csvContent += headers.join(",") + "\n";
         csvContent += data.map((item) =>
@@ -153,7 +160,21 @@ export function Report({ data }: { data: DateRange | undefined }) {
                 })
                 .join(",")
         ).join("\n");
-
+        const grandTotal = data.reduce((sum, item) => {
+            // Convert to number in case it's stored as string
+            const finalTotal = typeof item["Final Total"] === "string" 
+                ? parseFloat(item["Final Total"] as string) 
+                : (item["Final Total"] as number);
+            
+            return sum + (isNaN(finalTotal) ? 0 : finalTotal);
+        }, 0);
+        
+        // Add empty line and grand total row
+        csvContent += "\n\n";
+        
+        // Create a row with empty cells until the Final Total column
+        const emptyFields = Array(headers.length - 1).fill("").join(",");
+        csvContent += `${emptyFields},"Grand Total: ${grandTotal.toFixed(2)}"`;
         // Ice Cream Analysis Section
         csvContent += "\n\nICE CREAM ANALYSIS (Sorted by Revenue)\n";
         csvContent += "Ice Cream Name,Category,Quantity Sold,Total Revenue\n";
@@ -178,7 +199,59 @@ export function Report({ data }: { data: DateRange | undefined }) {
         return csvContent;
     };
 
-    // Rest of the component remains the same...
+    const generateOrdersCSV = (Orders: Orders[]): string => {
+     
+        
+
+        let csvContent = "ORDERS REPORT\n";
+        const headers = [
+            "Date",
+            "Order ID",
+            "Mode of Payment",
+            "Payment Details",
+            "Order Type",
+            "Biller Name",
+            "Branch",
+            "Ice Creams",
+            "Has Addons",
+            "Sub Total",
+            "Discount",
+            "Coupon",
+            "Total After Discount",
+            "GST Rate",
+            "GST Amount",
+            "Final Total"
+          ];
+
+          csvContent += headers.join(",") + "\n";
+          csvContent += Orders.map(order => 
+            headers.map(header => {
+                const value = order[header as keyof Orders];
+                if (header === "Date") {
+                  return format(value as Date, "yyyy-MM-dd HH:mm:ss");
+                }
+                return typeof value === "string" ? `"${value}"` : value;
+              }).join(",")
+            ).join("\n");
+          
+            const grandTotal = Orders.reduce((sum, item) => {
+                // Convert to number in case it's stored as string
+                const finalTotal = typeof item["Final Total"] === "string" 
+                    ? parseFloat(item["Final Total"] as string) 
+                    : (item["Final Total"] as number);
+                
+                return sum + (isNaN(finalTotal) ? 0 : finalTotal);
+            }, 0);
+            
+            // Add empty line and grand total row
+            csvContent += "\n\n";
+            
+            // Create a row with empty cells until the Final Total column
+            const emptyFields = Array(headers.length - 1).fill("").join(",");
+            csvContent += `${emptyFields},"Grand Total: ${grandTotal.toFixed(2)}"`;
+          return csvContent;
+    };
+
     const downloadCSV = (csvContent: string, fileName: string) => {
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
@@ -193,44 +266,54 @@ export function Report({ data }: { data: DateRange | undefined }) {
         }
     };
 
-    const handleClick = async () => {
+    const handleClick = async (reportType: 'detailed' | 'orders') => {
         if (data?.from && data?.to) {
             setError(null);
             const startDate = format(data.from, "yyyy-MM-dd");
             const endDate = format(data.to, "yyyy-MM-dd");
             try {
-     
                 const detailedOrders = await getReport(startDate, endDate, userId);
-                const transformedData = detailedOrders.map((order) => {
-                    const subTotal = order.cost * order.quantity;
-                    const gst = order.cost * gstRate;
-                    const addonsTotal = order.addons.reduce((total, addon) => 
-                        total + addon.priceAtTime * addon.quantity, 0);
-                    const finalTotal = (order.cost * order.quantity) + gst + (addonsTotal ?? 0);
-                    
+                const transformedData = detailedOrders.detailedItems.map((order) => {
+
+                    const gst = order.finalTotal* gstRate;
+
                     return {
                         Date: format(order.date, "yyyy-MM-dd HH:mm:ss"),
                         "Invoice ID": order.orderId,
                         "Mode of Payment": order.modeOfPayment,
                         "Order Type": order.orderType,
-                        Branch: order.username,
+                        "Branch": order.username,
+                        "Biller Name": order.billerName,
                         "Ice Cream Name": order.iceCreamName,
-                        Cost: order.cost,
-                        Quantity: order.quantity,
-                        "Sub Total": subTotal,
-                        GST: gst,
-                        Category: order.category,
-                        Addons: order.addons.map(addon => 
-                            `${addon.addon.name} (${addon.quantity})`).join(', '),
-                        AddonsTotal: addonsTotal,
-                        "Final Total": finalTotal,
+                        "Category": order.category,
+                        "Cost": order.cost,
+                        "Quantity": order.quantity,
+                        
+                        "Addons": order.addons.map(addon => 
+                            `${addon.addon.name} (${addon.quantity})`).join('; '),
+                        "Addons Total": order.addonTotal,
+                        "Sub Total": order.subtotal,
+                        "Discount": order.discount,
+                        "Coupon": order.coupon,
+                        "Total After Discount" :order.finalTotal,
+                        "GST Rate" : gstRate,
+                        "GST Amount" : gst,
+                        "Final Total": order.finalTotal+ gst
+                      
+                      
                     };
                 });
 
-                const analytics = generateAnalytics(detailedOrders);
-                const csvContent = generateCSV(transformedData, analytics);
-                const fileName = `sales_report_${format(data.from, "yyyy-MM-dd")}_to_${format(data.to, "yyyy-MM-dd")}.csv`;
-                downloadCSV(csvContent, fileName);
+                const analytics = generateAnalytics(detailedOrders.detailedItems);
+                const dateStr = `${format(data.from, "yyyy-MM-dd")}_to_${format(data.to, "yyyy-MM-dd")}`;
+                
+                if (reportType === 'detailed') {
+                    const csvContent = generateDetailedCSV(transformedData, analytics);
+                    downloadCSV(csvContent, `detailed_report_${dateStr}.csv`);
+                } else {
+                    const csvContent = generateOrdersCSV(detailedOrders.orders);
+                    downloadCSV(csvContent, `orders_report_${dateStr}.csv`);
+                }
 
             } catch (error) {
                 console.error("Error generating report:", error);
@@ -242,10 +325,21 @@ export function Report({ data }: { data: DateRange | undefined }) {
     };
 
     return (
-        <div>
-            <Button onClick={handleClick} className="text-black font-semibold py-2 px-4 hover:text-blue-500 transition duration-300 ease-in-out">
-                Download Report for selected Dates
-            </Button>
+        <div className="space-y-4">
+            <div className="flex gap-4">
+                <Button 
+                    onClick={() => handleClick('detailed')} 
+                    className="text-black font-semibold py-2 px-4 hover:text-blue-500 transition duration-300 ease-in-out"
+                >
+                    Download Detailed Report
+                </Button>
+                <Button 
+                    onClick={() => handleClick('orders')} 
+                    className="text-black font-semibold py-2 px-4 hover:text-blue-500 transition duration-300 ease-in-out"
+                >
+                    Download Orders Report
+                </Button>
+            </div>
             {error && <p className="text-red-500 mt-2">{error}</p>}
         </div>
     );

@@ -6,13 +6,13 @@ import { Suspense } from 'react';
 
 export default async function LastOrdersPage() {
   const session = await auth();
-  const userId = session?.user?.id;
+  const userId = session?.user?.storeId;
 
   const recentOrders = await getRecentOrders(userId);
 
   return (
     <main className="p-6 mt-16">
-      <h1 className="text-2xl font-bold mb-6">Last 20 Orders</h1>
+      <h1 className="text-2xl font-bold mb-6">Today Orders</h1>
       <Suspense fallback={<div>Loading...</div>}>
         <LastOrdersList orders={recentOrders} />
       </Suspense>

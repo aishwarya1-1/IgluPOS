@@ -102,6 +102,7 @@ export function ComponentBar({ data }: { data: SalesDataEntry[] }) {
                 return date.toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
+                  timeZone: 'Asia/Kolkata'
                 })
               }}
             />
@@ -115,6 +116,7 @@ export function ComponentBar({ data }: { data: SalesDataEntry[] }) {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
+                      timeZone: 'Asia/Kolkata'
                     })
                   }}
                 />

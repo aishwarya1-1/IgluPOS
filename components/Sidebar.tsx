@@ -2,8 +2,10 @@
 import { PowerIcon } from '@heroicons/react/16/solid';
 import { signOut } from '@/auth';
 import NavLinks from './navLinks';
+import AdminNavLinks from './AdminNavLinks';
 
-const Sidebar = () => {
+const Sidebar = ({ role = 'employee' }: { role?: string }) => {
+ 
   return (
     <div>
       {/* Toggle button for small screens */}
@@ -17,7 +19,7 @@ const Sidebar = () => {
           <div className="p-4">
             <h2 className="text-2xl font-bold">Iglu Ice Cream</h2>
           </div>
-          <NavLinks />
+          {role === 'admin' ? <AdminNavLinks /> : <NavLinks />}
           <form
             action={async () => {
               'use server';
@@ -36,7 +38,7 @@ const Sidebar = () => {
         <div className="p-4">
           <h2 className="text-2xl font-bold">Iglu Ice Cream</h2>
         </div>
-        <NavLinks />
+        {role === 'admin' ? <AdminNavLinks /> : <NavLinks />}
         <form
           action={async () => {
             'use server';

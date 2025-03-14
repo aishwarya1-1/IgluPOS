@@ -38,7 +38,7 @@ const EditIceCreamForm =({ initialData }: { initialData: CreateAddon | null}) =>
       throw new Error("User ID is required.");
     }
     const updateInvoiceWithId = (prevState: State, formData: FormData) => 
-      UpdateIcecream(id, userId, prevState, formData);
+      UpdateIcecream(id, prevState, formData);
   
     const [state, formAction] = useFormState(updateInvoiceWithId, initialState);
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {

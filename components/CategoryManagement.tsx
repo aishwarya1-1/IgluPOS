@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCategories, addCategory, updateCategory, deleteCategory, getEmail, updateEmail, getAdonsData, deleteAddonById } from '@/app/lib/actions';
+import { getCategories, addCategory, updateCategory, deleteCategory, getAdonsData, deleteAddonById } from '@/app/lib/actions';
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from '@/context/UserContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -23,8 +23,8 @@ const fetchCategories = async () => {
   }
 }
 
-const fetchAddons = async () => {
-  const result = await getAdonsData()
+const fetchAddons = async (userId :string) => {
+  const result = await getAdonsData(userId)
   // Ensure we return a plain object
   return {
     ...result,
@@ -32,13 +32,13 @@ const fetchAddons = async () => {
   }
 }
 
-const fetchEmail = async (userId: string ) => {
-  const result = await getEmail(userId);
-  if (!result) {
-    throw new Error('Failed to fetch email');
-  }
-  return result;
-};
+// const fetchEmail = async (userId: string ) => {
+//   const result = await getEmail(userId);
+//   if (!result) {
+//     throw new Error('Failed to fetch email');
+//   }
+//   return result;
+// };
 
 const CategoryManagement = () => {
   const { userId } = useUser();
@@ -54,12 +54,12 @@ const CategoryManagement = () => {
   const [editingCategory, setEditingCategory] = useState<{id:number,name:string} | null>(null);
   // const [isLoading, setIsLoading] = useState(false);
   // const [currentEmail, setCurrentEmail] = useState('');
-  const [isEditingEmail, setIsEditingEmail] = useState(false);
-  const [newEmail, setNewEmail] = useState('');
+  // const [isEditingEmail, setIsEditingEmail] = useState(false);
+  // const [newEmail, setNewEmail] = useState('');
   // const [addons, setAddons] = useState<CreateAddon[]>([])
 
   const [pendingAction, setPendingAction] = useState<{
-    type: 'add' | 'edit' | 'updateEmail';
+    type: 'add' | 'edit' ;
     id?: number;
   } | null>(null);
 
@@ -78,30 +78,30 @@ const CategoryManagement = () => {
     isLoading: addonsLoading 
   } = useQuery({
     queryKey: ['addons'],
-    queryFn: fetchAddons,
+    queryFn: () => fetchAddons(userId ?? ''),
     staleTime: 1000 * 60 * 60 * 12, // 12 hours
     gcTime: 1000 * 60 * 60 * 24,   // 24 hours
   });
 
-  const { 
-    data: currentEmail = '', 
-    isLoading: emailLoading 
-  } = useQuery({
-    queryKey: ['email', userId],
-    queryFn: () => {
-      if (!userId) {
-        return Promise.reject(new Error('User ID is required'));
-      }
-      return fetchEmail(userId);
-    },
-    staleTime: 1000 * 60 * 60 * 24, // 24 hours
-    gcTime: 1000 * 60 * 60 * 48,   // 48 hours
-  });
+  // const { 
+  //   data: currentEmail = '', 
+  //   isLoading: emailLoading 
+  // } = useQuery({
+  //   queryKey: ['email', userId],
+  //   queryFn: () => {
+  //     if (!userId) {
+  //       return Promise.reject(new Error('User ID is required'));
+  //     }
+  //     return fetchEmail(userId);
+  //   },
+  //   staleTime: 1000 * 60 * 60 * 24, // 24 hours
+  //   gcTime: 1000 * 60 * 60 * 48,   // 48 hours
+  // });
 
   const addons = addonsData?.data || []
   const categories = categoriesData?.data || []
 
-  const isLoading = categoriesLoading || addonsLoading || emailLoading;
+  const isLoading = categoriesLoading || addonsLoading ;
   const verifyPassword = (adminAction: () => Promise<void>) => {
     const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
     if (password === adminPassword) {
@@ -116,27 +116,7 @@ const CategoryManagement = () => {
       });
     }
   };
-  const handleUpdateEmail = async () => {
-
-    const result = await updateEmail(userId,newEmail);
-
-
-    if (result?.success) {
-      queryClient.invalidateQueries({ queryKey: ['email'] });
-      setIsEditingEmail(false);
-
-      toast({
-        title: "Success",
-        description: "Email updated successfully",
-      });
-    } else {
-      toast({
-        title: "Error",
-        description: "Failed to update email",
-        variant: "destructive",
-      });
-    }
-  };
+  
   const handleAddCategory = async () => {
     console.log('adding category');
 
@@ -261,7 +241,7 @@ const CategoryManagement = () => {
 
     }
   }
-  const initiateAction = (type: 'add' | 'edit' | 'updateEmail', id?: number) => {
+  const initiateAction = (type: 'add' | 'edit' , id?: number) => {
     setPendingAction({ type, id });
     setIsPasswordModalOpen(true);
   };
@@ -278,9 +258,7 @@ const CategoryManagement = () => {
         verifyPassword(() => handleEditCategory(pendingAction.id!));
         break;
   
-      case 'updateEmail':
-          verifyPassword(() => handleUpdateEmail());
-          break;
+
     }
   };
   const filteredAddons = addons.filter((addon) => addon.category === activeTab);
@@ -468,7 +446,7 @@ const CategoryManagement = () => {
         </div>
       </CardContent>
     </Card>
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle>Email Settings</CardTitle>
             <CardDescription>Manage admin email address</CardDescription>
@@ -519,7 +497,7 @@ const CategoryManagement = () => {
               </div>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
     </div>
   );

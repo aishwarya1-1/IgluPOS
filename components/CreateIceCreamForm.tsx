@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useFormState } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createIcecream, getCategories, State } from '@/app/lib/actions'
+import { useUser } from '@/context/UserContext'
 
 // Wrapper function to ensure plain objects
 const fetchCategories = async () => {
@@ -15,8 +16,9 @@ const fetchCategories = async () => {
 }
 
 const CreateIceCreamForm = () => {
+   const { userId } = useUser();
   const initialState: State = { message: "", errors: {} }
-  const [state, formAction] = useFormState(createIcecream, initialState)
+  const [state, formAction] = useFormState(createIcecream.bind(null, userId), initialState)
   const [key, setKey] = useState(0)
   const queryClient = useQueryClient()
   // Replace useState + useEffect with useQuery

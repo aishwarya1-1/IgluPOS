@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useFormState } from 'react-dom';
 import { CartItem, useCart } from '../context/CartContext';
 import { useUser } from '@/context/UserContext';
-import { appendKOTorder, BillState, createBill, createKOTBill, editKOTorder} from '@/app/lib/actions';
+import { appendKOTorder, BillState, createBill, createKOTBill, editKOTorder,validateCoupon} from '@/app/lib/actions';
 import { useEffect, useState } from 'react';
 import Cart from './Cart';
 import { useRouter } from 'next/navigation'; 
@@ -15,9 +14,16 @@ import { isMobileDevice } from '@/app/lib/device';
 import { RawBTPrinter } from '@/app/lib/rawBT';
 
 export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: number; kotAction?: string ;cartItems?:string;}) {
-  const { cart, clearCart, totalCost, populateCart } = useCart();
-  const { userId } = useUser();
-  
+
+  const { cart, clearCart, totalCost, populateCart,  applyDiscount, 
+    removeDiscount,currentDiscount  } = useCart();
+    const [activeTab, setActiveTab] = useState<'none' | 'discount' | 'coupon'>('none');
+  const [discountType, setDiscountType] = useState<'PERCENTAGE' | 'FLAT' | ''>('');
+  const [discountValue, setDiscountValue] = useState<number>(0);
+  const [couponCode, setCouponCode] = useState<string>('');
+
+  const { userId,billerName,address } = useUser();
+  console.log('address is',address)
   const queryClient = useQueryClient();
   const { toast } = useToast()
   const isMobile = isMobileDevice();
@@ -25,9 +31,9 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
 
   const createBilling = async (prevState: BillState, formData: FormData ) => {
     const currentKotActionState = kotActionState;
-  
+ 
 
-    return createBill(cart, totalCost, userId, prevState, formData,currentKotActionState,kotid);
+    return createBill(cart, totalCost, userId, prevState, formData,currentKotActionState,kotid,billerName,partPayment,currentDiscount);
     
   };
   const initialState: BillState = { message: '', errors: {} };
@@ -36,20 +42,106 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   const [action, setAction] = useState('');
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [customerName, setCustomerName] = useState("");
-
+  const [showPartPay, setShowPartPay] = useState(false);
+  const [modeOfPayment, setModeOfPayment] = useState("");
+  const [partPayment, setPartPayment] = useState<{ Cash: number; UPI: number; Card: number }>({
+    Cash: 0,
+    UPI: 0,
+    Card: 0,
+  });
+  const [remaining, setRemaining] = useState(totalCost);
+  const [isValid, setIsValid] = useState(true);
   const router = useRouter();
 
   const [isKOTDisabled, setIsKOTDisabled] = useState(false);
   const [isSaveAndPrintDisabled, setIsSaveAndPrintDisabled] = useState(false);
 
-    const [isKOTPrintEnabled, setIsKOTPrintEnabled] = useState(false);
+  const [isKOTPrintEnabled, setIsKOTPrintEnabled] = useState(false);
+
+  const toggleKOTPrint = () => {
+    setIsKOTPrintEnabled(!isKOTPrintEnabled);
+  };
   
-    const toggleKOTPrint = () => {
-      setIsKOTPrintEnabled(!isKOTPrintEnabled);
-    };
-    
-    let printFrame: HTMLIFrameElement | null = null;
-const getPrintFrame = () => {
+  useEffect(() => {
+    setPartPayment({ Cash: 0, UPI: 0, Card: 0 });
+   
+    setRemaining(totalCost);
+  }, [totalCost]);
+
+  const handleAmountChange = (method: "Cash" | "UPI" | "Card", value: number) => {
+    const newAmounts = { ...partPayment, [method]: value };
+    const totalEntered = Object.values(newAmounts).reduce((sum, val) => sum + val, 0);
+    const newRemaining = totalCost - totalEntered;
+
+    setIsValid(newRemaining >= 0);
+    setRemaining(newRemaining);
+    setPartPayment(newAmounts);
+  };
+
+  const handlePaymentChange = (value: string) => {
+    setModeOfPayment(value)
+    setShowPartPay(value === "PartPay");
+  };
+
+  const handleOKClick = () => {
+    console.log("Final Payment Breakdown:", partPayment);
+    setShowPartPay(false);
+  };
+
+  const handleDiscountTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setDiscountType(e.target.value as 'PERCENTAGE' | 'FLAT');
+  };
+
+  // Apply Discount
+  const handleApplyDiscount = () => {
+    if (!discountType) return;
+
+    applyDiscount({
+      type: discountType,
+      value: discountValue,
+
+    });
+
+    // Reset and close the discount section
+    setActiveTab('none');
+    setDiscountType('');
+    setDiscountValue(0);
+  };
+
+  // Apply Coupon (mock implementation)
+  const handleApplyCoupon = async () => {
+    try {
+    if(!userId){
+      return
+    }
+      // Simulate coupon validation
+      const couponResponse = await validateCoupon(userId,couponCode);
+
+      // Apply the discount from the coupon
+      applyDiscount({
+        type: couponResponse.type,
+        value: couponResponse.value,
+       id:couponResponse.couponId
+      });
+
+      // Reset and close the coupon section
+      setActiveTab('none');
+   
+      setCouponCode('');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      toast({
+        title: 'Error',
+        description: `Failed : ${errorMessage}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  
+
+  let printFrame: HTMLIFrameElement | null = null;
+  const getPrintFrame = () => {
   if (!printFrame) {
     printFrame = document.createElement('iframe');
     printFrame.style.position = 'fixed';
@@ -134,9 +226,24 @@ const printDocument = (content: string): Promise<void> => {
 };
 
 const printCustomerBillDesktop = async (billNo: string | null) => {
+  // Format discount text
+  let discountText = '';
+  if (currentDiscount) {
+    if (currentDiscount.id) {
+      discountText = `Coupon Applied: ${currentDiscount.type === 'FLAT' ? 
+        `₹${currentDiscount.value} off` : 
+        `${currentDiscount.value}% off`}`;
+    } else {
+      discountText = `Discount Applied: ${currentDiscount.type === 'FLAT' ? 
+        `₹${currentDiscount.value} off` : 
+        `${currentDiscount.value}% off`}`;
+    }
+  }
+
   const content = `
     <div class="text-center">
       <div class="title">Iglu Ice Cream Shop</div>
+      <p style="margin: 5px 0;">${address || ''}</p>
       <p style="margin: 5px 0;">Branch Id: ${userId}</p>
       <p style="margin: 5px 0;">Date: ${new Date().toLocaleDateString()}</p>
       <p style="margin: 5px 0;" class="font-bold">CUSTOMER COPY</p>
@@ -159,6 +266,11 @@ const printCustomerBillDesktop = async (billNo: string | null) => {
     `).join('')}
     
     <div class="divider"></div>
+    ${currentDiscount ? `
+    <div class="text-right" style="margin: 5px 0;">
+      ${discountText}
+    </div>
+    ` : ''}
     <div class="font-bold text-right">
       Total: Rs.${totalCost.toFixed(2)}
     </div>
@@ -481,6 +593,8 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
 
     // Clear cart and reset page
     clearCart();
+    removeDiscount()
+    setModeOfPayment('')
     toast({
       title: "Success",
       description: "Bill Added",
@@ -666,14 +780,61 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
             id="modeOfPayment"
             name="modeOfPayment"
             className="w-full p-2 border rounded text-sm"
+            onChange={(e) => handlePaymentChange(e.target.value)}
             aria-describedby="payment-error"
+            disabled={isSaveAndPrintDisabled}
           >
             <option value="">Select a Payment method</option>
             <option value="Card">Card</option>
             <option value="Cash">Cash</option>
             <option value="UPI">UPI</option>
+            <option value="PartPay">PartPay</option>
           </select>
-          <div id="payment-error" aria-live="polite" aria-atomic="true">
+          {modeOfPayment=='PartPay' && !showPartPay && Object.keys(partPayment).length > 0 && (
+      <div className="mt-3 p-2 border rounded bg-gray-100 text-sm">
+        {Object.entries(partPayment).map(([method, amount]) => (
+          <div key={method}>
+            {method}: ₹{amount}
+          </div>
+        ))}
+        <button
+          className="mt-2 text-blue-500 underline text-xs"
+          onClick={() => {setShowPartPay(true);
+            setPartPayment({ Cash: 0, UPI: 0, Card: 0 });
+            setRemaining(totalCost);
+           
+          }}
+        >
+          Edit
+        </button>
+      </div>
+    )}
+          {showPartPay && (
+        <div className="mt-4 p-3 border rounded">
+          {(Object.keys(partPayment)as Array<keyof typeof partPayment>).map((method) => (
+            <div key={method} className="flex items-center gap-2 mb-2">
+              <label className="w-16">{method}</label>
+              <input
+                type="number"
+           
+                onChange={(e) => handleAmountChange(method as "Cash" | "UPI" | "Card", parseFloat(e.target.value) || 0)}
+                className={`border p-1 w-24 ${isValid ? "" : "border-red-500"}`}
+              />
+            </div>
+          ))}
+          <p className={`text-sm ${isValid ? "text-gray-500" : "text-red-500"}`}>
+            Remaining: {remaining}
+          </p>
+          <button 
+            disabled={!isValid || remaining !== 0} 
+            onClick={handleOKClick}
+            className={`bg-blue-500 text-white p-2 mt-2 rounded ${!isValid || remaining !== 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            OK
+          </button>
+        </div>
+      )}
+                 <div id="payment-error" aria-live="polite" aria-atomic="true">
             {state.errors?.modeOfPayment &&
               state.errors.modeOfPayment.map((error: string) => (
                 <p className="mt-2 text-xs text-red-500" key={error}>
@@ -681,6 +842,104 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
                 </p>
               ))}
           </div>
+          <div className="mt-4">
+        <div className="flex border">
+          <button
+            type="button"
+            className={`flex-1 py-2 border text-sm ${activeTab === 'discount' ? 'border-b-2 border-blue-500' : ''}`}
+            onClick={() => setActiveTab(activeTab === 'discount' ? 'none' : 'discount')}
+            disabled={!!currentDiscount || isSaveAndPrintDisabled}
+          >
+            Discounts
+          </button>
+          <button
+            type="button"
+            className={`flex-1 py-2 border text-sm${activeTab === 'coupon' ? 'border-b-2 border-blue-500' : ''}`}
+            onClick={() => setActiveTab(activeTab === 'coupon' ? 'none' : 'coupon')}
+            disabled={!!currentDiscount || isSaveAndPrintDisabled}
+          >
+            Coupons
+          </button>
+        </div>
+
+        {/* Discount Section */}
+        {activeTab === 'discount' && !currentDiscount && (
+          <div className="mt-4 p-3 border rounded text-sm">
+            <select 
+              className="w-full p-2 border rounded mb-2 text-sm"
+              value={discountType}
+              onChange={handleDiscountTypeChange}
+            >
+              <option value="">Select Discount Type</option>
+              <option value="PERCENTAGE">Flat Percentage on Bill Amount</option>
+              <option value="FLAT">Flat Amount in Rs.</option>
+            </select>
+            
+            {discountType && (
+              <div className="flex items-center gap-2 text-sm">
+                <input
+                  type="number"
+                  placeholder={discountType === 'PERCENTAGE' ? 'Enter %' : 'Enter Amount'}
+                  className="flex-grow p-2 border rounded text-sm"
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(parseFloat(e.target.value) )}
+                />
+                <button
+                  className="bg-blue-500 text-white p-2 rounded text-sm"
+                  onClick={handleApplyDiscount}
+                >
+                  Apply Discount
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Coupon Section */}
+        {activeTab === 'coupon' && !currentDiscount && (
+          <div className="mt-4 p-3 border rounded text-sm">
+            <input
+              type="text"
+              placeholder="Enter Coupon Code"
+              className="w-full p-2 border rounded mb-2"
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value)}
+            />
+              
+            <button
+              type="button" 
+              className="w-full bg-blue-500 text-white p-2 rounded text-sm"
+              onClick={(e) => {
+                e.preventDefault();
+                if (couponCode.trim() === '') {
+                  // Optional: You could also set a state to show the error message
+                  return;
+                }
+                handleApplyCoupon();
+              }}
+            >
+              Apply Coupon
+            </button>
+          </div>
+        )}
+
+        {/* Applied Discount/Coupon Display */}
+        {currentDiscount && (
+          <div className="text-sm mt-4 p-3 border rounded bg-green-50 flex justify-between items-center">
+            <span>
+              {currentDiscount.type === 'PERCENTAGE' 
+                ? `Discount Applied: ${currentDiscount.value}%` 
+                : `Flat Discount Applied: ₹${currentDiscount.value}`}
+            </span>
+            <button
+              className="text-red-500 text-xs"
+              onClick={removeDiscount}
+            >
+              Remove
+            </button>
+          </div>
+        )}
+           </div>
         </div>
         <div className="flex flex-col space-y-2">
           <button

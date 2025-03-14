@@ -20,8 +20,8 @@ import React from 'react'
 
 
 // Wrapper functions to handle server actions
-const fetchIceCreams = async () => {
-  const result = await getIceCreamData()
+const fetchIceCreams = async (userId: string) => {
+  const result = await getIceCreamData(userId)
   // Ensure we return a plain object
   return {
     ...result,
@@ -55,7 +55,7 @@ export default function IceCreamList() {
     error: iceCreamError
   } = useQuery({
     queryKey: ['iceCreams'],
-    queryFn: fetchIceCreams,
+    queryFn: () => fetchIceCreams(userId ?? ''),
     staleTime: 1000 * 60 * 60 * 12, // 12 hours
     gcTime: 1000 * 60 * 60 * 24
   })

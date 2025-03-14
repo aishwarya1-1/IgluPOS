@@ -1,43 +1,65 @@
-import NextAuth, { Session } from "next-auth";
+// auth.ts
+import NextAuth, { Session, User } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { authConfig } from "./auth.config";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { JWT } from "next-auth/jwt";
+import { decrypt } from "./app/lib/actions";
 
 const prisma = new PrismaClient();
 
-// Extend the default token to include id
-interface CustomJWT extends JWT {
-  id?: string;
+// Extend the default User type to include userType and storeId
+interface CustomUser extends User {
+  userType?: string;
+  storeId?: string;
+  address?: string;
 }
 
-// Extend the default session to include id
+// Extend the default token to include id and userType
+interface CustomJWT extends JWT {
+  id?: string;
+  userType?: string;
+  storeId?: string;
+  address?: string;
+}
+
+// Extend the default session to include id and userType
 interface CustomSession extends Session {
   user: {
     id?: string;
     name?: string;
-    email?: string;
+    address?: string;
+    userType?: string;
+    storeId?: string;
   };
 }
 
-async function getUser(username: string): Promise<{
-  id: number;
-  email: string;
-  username: string;
-  password: string;
-} | null> {
+// Get store user by username
+async function getStoreUser(username: string) {
   try {
     const user = await prisma.login.findUnique({
-      where: {
-        username: username,
-      },
+      where: { username: username },
     });
     return user;
   } catch (error) {
-    console.error("Failed to fetch user:", error);
-    throw new Error("Failed to fetch user.");
+    console.error("Failed to fetch store user:", error);
+    throw new Error("Failed to fetch store user.");
+  }
+}
+
+// Get employee user by username and verify store association
+async function getEmployeeUser(username: string) {
+  try {
+    const employee = await prisma.employee.findFirst({
+      where: { name: username },
+      include: { login: true },
+    });
+    return employee;
+  } catch (error) {
+    console.error("Failed to fetch employee:", error);
+    throw new Error("Failed to fetch employee.");
   }
 }
 
@@ -47,23 +69,51 @@ export const { auth, signIn, signOut } = NextAuth({
     Credentials({
       async authorize(credentials) {
         const parsedCredentials = z
-          .object({ username: z.string(), password: z.string() })
+          .object({
+            username: z.string(),
+            password: z.string(),
+            userType: z.string(),
+          })
           .safeParse(credentials);
 
         if (parsedCredentials.success) {
-          const { username, password } = parsedCredentials.data;
-          const user = await getUser(username);
+          const { username, password, userType } = parsedCredentials.data;
 
-          if (!user) return null;
-          const passwordsMatch = await bcrypt.compare(password, user.password);
+          // Different authentication logic based on user type
+          if (userType === "store") {
+            // Authenticate store admin
+            const user = await getStoreUser(username);
 
-          if (passwordsMatch) {
-            // Ensure id is passed as a string
-            return {
-              id: String(user.id),
-              email: user.email,
-              name: user.username,
-            };
+            if (!user) return null;
+            const decryptedPassword = await decrypt(user.password); // Decrypt stored password
+
+            if (password === decryptedPassword) {
+              return {
+                id: String(user.id),
+                address: user.address,
+                name: user.username,
+                userType: "store",
+                storeId: String(user.id),
+              } as CustomUser;
+            }
+          } else if (userType === "employee") {
+            // Authenticate employee
+            const employee = await getEmployeeUser(username);
+
+            if (!employee) return null;
+
+            const decryptedPassword = await decrypt(employee.password); // Decrypt stored password
+
+            if (password === decryptedPassword) {
+              return {
+                id: employee.login.username,
+                name: employee.name,
+                // We can use the store's email as a fallback
+                address: employee.login.address,
+                userType: "employee",
+                storeId: String(employee.loginId), // Keep track of which store this employee belongs to
+              } as CustomUser;
+            }
           }
         }
 
@@ -75,15 +125,15 @@ export const { auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       const customToken = token as CustomJWT;
+      const customUser = user as CustomUser | undefined;
 
-      // Add user.id to the token on sign-in
-      if (user) {
-        customToken.id = user.id; // Assign user.id to token.id
-      } else if (token.sub) {
-        customToken.id = token.sub; // Map token.sub to token.id
+      if (customUser) {
+        customToken.id = customUser.id;
+        customToken.userType = customUser.userType;
+        customToken.storeId = customUser.storeId;
+        customToken.address = customUser.address;
       }
 
-      //   console.log("JWT after update:", customToken); // Debug log
       return customToken;
     },
     // This runs when a session is created
@@ -91,12 +141,22 @@ export const { auth, signIn, signOut } = NextAuth({
       const customSession = session as CustomSession;
       const customToken = token as CustomJWT;
 
-      // Add user.id to the session from token.id
       if (customToken.id) {
         customSession.user.id = customToken.id;
       }
 
-      //   console.log("Session after update:", customSession); // Debug log
+      if (customToken.userType) {
+        customSession.user.userType = customToken.userType;
+      }
+
+      if (customToken.storeId) {
+        customSession.user.storeId = customToken.storeId;
+      }
+
+      if (customToken.address) {
+        customSession.user.address = customToken.address;
+      }
+
       return customSession;
     },
   },

@@ -33,7 +33,7 @@ const EditAddonForm = ({ initialData }: { initialData: CreateAddon | null }) => 
   }
   
   const updateInvoiceWithId = (prevState: AddonState, formData: FormData) => 
-    UpdateAddon(id, userId, prevState, formData);
+    UpdateAddon(id, prevState, formData);
   
   const [state, formAction] = useFormState(updateInvoiceWithId, initialState);
 

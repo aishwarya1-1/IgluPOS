@@ -19,20 +19,52 @@ enum AddonCategory {
   Cone
 }
 
+enum DiscountType {
+  FLAT
+  PERCENTAGE
+}
+
 model Category {
   id       Int          @id @default(autoincrement())
   name     String       @unique
   iceCreams IceCream[]  @relation("IceCreamCategory")
 }
+
+model Discount {
+  id         Int          @id @default(autoincrement())
+  type       DiscountType  // FLAT or PERCENTAGE
+  value      Float        // Discount value (fixed amount or percentage)
+
+  orders     Order[]      // Orders using this discount
+
+  @@unique([type, value]) // Prevents duplicate discounts
+}
+
+model Coupon {
+  id            Int           @id @default(autoincrement())
+  code          String        @unique  // Unique coupon code
+  type       DiscountType
+  value         Float         // Value of coupon (fixed or percentage)
+  maxUsage      Int?          // Optional: Limit the number of times it can be used
+  expiryDate    DateTime?     // Optional expiry date
+  orders        Order[]       // Orders using this coupon
+  loginId    Int          // Ensure each login has its own ice creams
+  login      Login        @relation(fields: [loginId], references: [id])
+}
+
 model IceCream {
   id         Int          @id @default(autoincrement())
   name       String       @db.VarChar(255)
-  categoryId   Int         // Changed from enum to relation
-  cost         Float
-  // Relations
- category    Category @relation("IceCreamCategory", fields: [categoryId], references: [id])
-  orderItems OrderItems[]
+  categoryId Int
+  cost       Float
+  loginId    Int          // Ensure each login has its own ice creams
+  login      Login        @relation(fields: [loginId], references: [id])
+  
+  category    Category    @relation("IceCreamCategory", fields: [categoryId], references: [id])
+  orderItems  OrderItems[]
+  @@unique([name, categoryId, cost, loginId]) 
 }
+
 
 
 
@@ -40,6 +72,7 @@ enum ModeOfPayment {
   Cash
   Card
   UPI
+  PartPay
 }
 
 enum OrderType {
@@ -58,13 +91,20 @@ model Order {
   userOrderId   Int
   orderDate     DateTime      @default(now())
   modeOfPayment ModeOfPayment
+  paymentDetails Json?
   orderType     OrderType
   totalCost     Float         @default(0.0)
   userId        Int
   status        OrderStatus   @default(SUCCESS)
+  billerName    String
+  discountId    Int?          // Foreign key to Discount
+  couponId      Int?          // Foreign key to Coupon
   // Relation field
   user          Login         @relation(fields: [userId], references: [id])
   orderItems    OrderItems[]
+  discount      Discount?     @relation(fields: [discountId], references: [id])
+  coupon        Coupon?       @relation(fields: [couponId], references: [id])
+
 }
 
 model OrderItems {
@@ -80,15 +120,30 @@ model OrderItems {
 
   @@unique([orderId, iceCreamId])
 }
+model Employee {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(255)
+  password   String   @db.VarChar(255) // Store hashed password
+  phoneNumber String  @db.VarChar(20) // Employee's phone number
+  loginId    Int      // Foreign key to Login
+  login      Login    @relation(fields: [loginId], references: [id])
+   @@unique([name, phoneNumber])
+}
 
 model Login {
   id               Int               @id @default(autoincrement())
   email            String            @db.VarChar(255)
   username         String            @unique @db.VarChar(255) // Ensure usernames are unique
   password         String            @db.VarChar(255) // Store hashed password
+  address         String?            // Added address field
+  gstNumber       String?            // Added GST number field
   orders           Order[]
   kotOrders        KOTOrder[]
   userOrderCounter UserOrderCounter?
+  employees        Employee[]         // One-to-many relation with employees
+  iceCreams        IceCream[]         // Each login has its own list of ice creams
+  addons           Addon[]            // Each login has its own list of addons
+  coupons         Coupon[]
 }
 
 model UserOrderCounter {
@@ -116,7 +171,10 @@ model Addon {
   name            String
   price           Float
   category        AddonCategory
+  loginId         Int              // Ensure each login has its own addons
+  login           Login            @relation(fields: [loginId], references: [id])
   orderItemAddons OrderItemAddon[]
+    @@unique([name, price, category, loginId])
 }
 
 model OrderItemAddon {
