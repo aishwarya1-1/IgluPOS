@@ -14,16 +14,20 @@ export default async function Layout({
 }) {
   const session = await auth()
   const userId = session?.user?.storeId
+  const companyName=session?.user?.companyName
   
   return (
     <UserProvider userId={userId}
     billerName={session?.user?.name}
-    address={session?.user?.address}>
+    address={session?.user?.address}
+    companyName={companyName}
+    gstNumber={session?.user?.gstNumber}
+   >
       <CartProvider>
         <div className="flex flex-col md:flex-row">
           {/* Sidebar */}
           <div className="md:fixed md:w-64">
-            <Sidebar />
+            <Sidebar companyName={companyName} />
           </div>
           
           {/* Main Content */}

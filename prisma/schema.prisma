@@ -42,7 +42,7 @@ model Discount {
 
 model Coupon {
   id            Int           @id @default(autoincrement())
-  code          String        @unique  // Unique coupon code
+  code          String        
   type       DiscountType
   value         Float         // Value of coupon (fixed or percentage)
   maxUsage      Int?          // Optional: Limit the number of times it can be used
@@ -50,6 +50,7 @@ model Coupon {
   orders        Order[]       // Orders using this coupon
   loginId    Int          // Ensure each login has its own ice creams
   login      Login        @relation(fields: [loginId], references: [id])
+    @@unique([code, loginId])
 }
 
 model IceCream {
@@ -127,7 +128,7 @@ model Employee {
   phoneNumber String  @db.VarChar(20) // Employee's phone number
   loginId    Int      // Foreign key to Login
   login      Login    @relation(fields: [loginId], references: [id])
-   @@unique([name, phoneNumber])
+   @@unique([name, phoneNumber, loginId])
 }
 
 model Login {
@@ -137,6 +138,7 @@ model Login {
   password         String            @db.VarChar(255) // Store hashed password
   address         String?            // Added address field
   gstNumber       String?            // Added GST number field
+  companyName     String
   orders           Order[]
   kotOrders        KOTOrder[]
   userOrderCounter UserOrderCounter?

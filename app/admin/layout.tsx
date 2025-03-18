@@ -14,14 +14,16 @@ export default async function Layout({
 }) {
   const session = await auth()
   const userId = session?.user?.id
+  const companyName=session?.user?.companyName
   
   return (
-    <UserProvider userId={userId}>
+    <UserProvider userId={userId}
+    companyName={companyName}>
       
         <div className="flex flex-col md:flex-row">
           {/* Sidebar */}
           <div className="md:fixed md:w-64">
-          <Sidebar role="admin" />
+          <Sidebar role="admin" companyName={companyName}/>
           </div>
           
           {/* Main Content */}

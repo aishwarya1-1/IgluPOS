@@ -32,13 +32,7 @@ const fetchAddons = async (userId :string) => {
   }
 }
 
-// const fetchEmail = async (userId: string ) => {
-//   const result = await getEmail(userId);
-//   if (!result) {
-//     throw new Error('Failed to fetch email');
-//   }
-//   return result;
-// };
+
 
 const CategoryManagement = () => {
   const { userId } = useUser();
@@ -52,11 +46,7 @@ const CategoryManagement = () => {
   const [password, setPassword] = useState('');
   const [newCategory, setNewCategory] = useState<string>('');
   const [editingCategory, setEditingCategory] = useState<{id:number,name:string} | null>(null);
-  // const [isLoading, setIsLoading] = useState(false);
-  // const [currentEmail, setCurrentEmail] = useState('');
-  // const [isEditingEmail, setIsEditingEmail] = useState(false);
-  // const [newEmail, setNewEmail] = useState('');
-  // const [addons, setAddons] = useState<CreateAddon[]>([])
+
 
   const [pendingAction, setPendingAction] = useState<{
     type: 'add' | 'edit' ;
@@ -77,26 +67,13 @@ const CategoryManagement = () => {
     data: addonsData, 
     isLoading: addonsLoading 
   } = useQuery({
-    queryKey: ['addons'],
+    queryKey: ['addons', userId],
     queryFn: () => fetchAddons(userId ?? ''),
     staleTime: 1000 * 60 * 60 * 12, // 12 hours
     gcTime: 1000 * 60 * 60 * 24,   // 24 hours
   });
 
-  // const { 
-  //   data: currentEmail = '', 
-  //   isLoading: emailLoading 
-  // } = useQuery({
-  //   queryKey: ['email', userId],
-  //   queryFn: () => {
-  //     if (!userId) {
-  //       return Promise.reject(new Error('User ID is required'));
-  //     }
-  //     return fetchEmail(userId);
-  //   },
-  //   staleTime: 1000 * 60 * 60 * 24, // 24 hours
-  //   gcTime: 1000 * 60 * 60 * 48,   // 48 hours
-  // });
+  
 
   const addons = addonsData?.data || []
   const categories = categoriesData?.data || []

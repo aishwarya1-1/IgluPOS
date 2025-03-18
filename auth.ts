@@ -3,7 +3,7 @@ import NextAuth, { Session, User } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { authConfig } from "./auth.config";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
+
 import { PrismaClient } from "@prisma/client";
 import { JWT } from "next-auth/jwt";
 import { decrypt } from "./app/lib/actions";
@@ -15,6 +15,8 @@ interface CustomUser extends User {
   userType?: string;
   storeId?: string;
   address?: string;
+  companyName?: string;
+  gstNumber?: string;
 }
 
 // Extend the default token to include id and userType
@@ -23,6 +25,8 @@ interface CustomJWT extends JWT {
   userType?: string;
   storeId?: string;
   address?: string;
+  companyName?: string;
+  gstNumber?: string;
 }
 
 // Extend the default session to include id and userType
@@ -33,6 +37,8 @@ interface CustomSession extends Session {
     address?: string;
     userType?: string;
     storeId?: string;
+    companyName?: string;
+    gstNumber?: string;
   };
 }
 
@@ -94,6 +100,7 @@ export const { auth, signIn, signOut } = NextAuth({
                 name: user.username,
                 userType: "store",
                 storeId: String(user.id),
+                companyName: user.companyName,
               } as CustomUser;
             }
           } else if (userType === "employee") {
@@ -111,7 +118,10 @@ export const { auth, signIn, signOut } = NextAuth({
                 // We can use the store's email as a fallback
                 address: employee.login.address,
                 userType: "employee",
-                storeId: String(employee.loginId), // Keep track of which store this employee belongs to
+                storeId: String(employee.loginId),
+                companyName: employee.login.companyName,
+                gstNumber: employee.login.gstNumber,
+                // Keep track of which store this employee belongs to
               } as CustomUser;
             }
           }
@@ -132,6 +142,8 @@ export const { auth, signIn, signOut } = NextAuth({
         customToken.userType = customUser.userType;
         customToken.storeId = customUser.storeId;
         customToken.address = customUser.address;
+        customToken.companyName = customUser.companyName;
+        customToken.gstNumber = customUser.gstNumber;
       }
 
       return customToken;
@@ -156,7 +168,12 @@ export const { auth, signIn, signOut } = NextAuth({
       if (customToken.address) {
         customSession.user.address = customToken.address;
       }
-
+      if (customToken.companyName) {
+        customSession.user.companyName = customToken.companyName; // Include companyName in session
+      }
+      if (customToken.gstNumber) {
+        customSession.user.gstNumber = customToken.gstNumber; // Include companyName in session
+      }
       return customSession;
     },
   },

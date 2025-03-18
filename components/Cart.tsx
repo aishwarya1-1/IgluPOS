@@ -32,7 +32,7 @@ const {userId} =useUser()
     data: addonsData,
 
   } = useQuery({
-    queryKey: ['addons'],
+    queryKey: ['addons', userId],
     queryFn: () => fetchAddons(userId ?? ''),
     staleTime: 1000 * 60 * 60 * 12, // 12 hours
     gcTime: 1000 * 60 * 60 * 24

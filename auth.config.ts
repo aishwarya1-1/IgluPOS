@@ -16,6 +16,8 @@ declare module "next-auth" {
       image?: string | null;
       userType?: string;
       storeId?: string;
+      companyName?: string;
+      gstNumber?: string;
     };
   }
 }

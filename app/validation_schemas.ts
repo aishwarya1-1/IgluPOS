@@ -27,15 +27,16 @@ export const registerUserSchema = z.object({
     .email("Invalid email address")
     .nonempty("Email is required"),
 
-  username: z.string().nonempty("Username is required"),
+  username: z.string().nonempty("Username is Required"),
 
-  password: z.string().nonempty("Password is required"),
+  password: z.string().nonempty("Password is Required"),
   address: z
     .string()
     .max(200, "Address cannot exceed 200 characters")
     .nonempty("Store address is required"),
 
-  gstNumber: z.string().nonempty("GST number is required"),
+  gstNumber: z.string().nonempty("GST number is Required"),
+  companyName: z.string().nonempty("Company Name is Required"),
 });
 
 const AddonItemSchema = z.object({
@@ -131,6 +132,7 @@ export const resetPasswordSchema = z.object({
 export const updateProfile = z.object({
   email: z.string().email("Invalid email address"),
   username: z.string().min(3, "Username must be at least 3 characters"),
-  address: z.string().optional(),
-  gstNumber: z.string().optional(),
+  address: z.string().nonempty("Address is required"),
+  gstNumber: z.string().nonempty("GSTNumber is required"),
+  companyName: z.string().nonempty("Company Name is required"),
 });

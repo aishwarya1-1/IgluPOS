@@ -28,6 +28,7 @@ type UserProfile = {
   username: string;
   address: string | null;
   gstNumber: string | null;
+  companyName :string | null;
 };
 
 export default function ProfilePage() {
@@ -147,6 +148,10 @@ function ProfileView({
           <h3 className="text-sm font-medium text-gray-500">GST Number</h3>
           <p className="mt-1 text-base">{profile.gstNumber || "Not provided"}</p>
         </div>
+        <div>
+          <h3 className="text-sm font-medium text-gray-500">Company Name</h3>
+          <p className="mt-1 text-base">{profile.companyName || "Not provided"}</p>
+        </div>
       </div>
       
       <div className="flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:space-x-3 mt-6">
@@ -262,6 +267,18 @@ function EditProfileForm({
           id="gstNumber"
           name="gstNumber"
           defaultValue={profile.gstNumber || ""}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+        />
+      </div>
+      <div>
+        <label htmlFor="companyName" className="block text-sm font-medium text-gray-700">
+         Company Name
+        </label>
+        <input
+          type="text"
+          id="companyName"
+          name="companyName"
+          defaultValue={profile.companyName || ""}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
         />
       </div>

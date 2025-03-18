@@ -4,8 +4,13 @@ import { signOut } from '@/auth';
 import NavLinks from './navLinks';
 import AdminNavLinks from './AdminNavLinks';
 
-const Sidebar = ({ role = 'employee' }: { role?: string }) => {
+
+
+const Sidebar = ({ role = 'employee',  companyName  }: { role?: string ;
+  companyName?: string | null;
+}) => {
  
+
   return (
     <div>
       {/* Toggle button for small screens */}
@@ -17,7 +22,7 @@ const Sidebar = ({ role = 'employee' }: { role?: string }) => {
         {/* Sidebar for small screens */}
         <div className="fixed inset-y-0 left-0 w-64 bg-blue-500 text-white z-40">
           <div className="p-4">
-            <h2 className="text-2xl font-bold">Iglu Ice Cream</h2>
+            <h2 className="text-2xl font-bold">{companyName}</h2>
           </div>
           {role === 'admin' ? <AdminNavLinks /> : <NavLinks />}
           <form
@@ -36,7 +41,7 @@ const Sidebar = ({ role = 'employee' }: { role?: string }) => {
       {/* Sidebar for larger screens */}
       <div className="hidden md:block fixed inset-y-0 left-0 w-64 bg-blue-500 text-white">
         <div className="p-4">
-          <h2 className="text-2xl font-bold">Iglu Ice Cream</h2>
+          <h2 className="text-2xl font-bold">{companyName}</h2>
         </div>
         {role === 'admin' ? <AdminNavLinks /> : <NavLinks />}
         <form

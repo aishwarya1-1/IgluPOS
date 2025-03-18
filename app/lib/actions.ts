@@ -27,7 +27,6 @@ import { AuthError } from "next-auth";
 const prisma = new PrismaClient();
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
 
 import crypto from "crypto";
 import { JsonValue } from "@prisma/client/runtime/library";
@@ -60,6 +59,7 @@ export type UserState = {
     password?: string[];
     address?: string[];
     gstNumber?: string[];
+    companyName?: string[];
   };
   message?: string;
 };
@@ -445,6 +445,7 @@ export async function registerUser(prevState: UserState, formData: FormData) {
     password: formData.get("password"),
     address: formData.get("address"),
     gstNumber: formData.get("gstNumber"),
+    companyName: formData.get("companyName"),
   });
   if (!validatedFields.success) {
     return {
@@ -452,7 +453,7 @@ export async function registerUser(prevState: UserState, formData: FormData) {
       message: "",
     };
   }
-  const { email, username, password, address, gstNumber } =
+  const { email, username, password, address, gstNumber, companyName } =
     validatedFields.data;
 
   const encryptedPassword = await encrypt(password);
@@ -465,6 +466,7 @@ export async function registerUser(prevState: UserState, formData: FormData) {
         password: encryptedPassword,
         address, // Add address field
         gstNumber,
+        companyName,
         userOrderCounter: {
           create: {
             counter: 0, // Initial counter value
@@ -1984,7 +1986,6 @@ export async function updateEmployee(employeeId: number, formData: FormData) {
       },
     });
 
-    revalidatePath("/admin");
     return { message: "Employee updated successfully" };
   } catch {
     return {
@@ -2019,7 +2020,6 @@ export async function resetEmployeePassword(
       },
     });
 
-    revalidatePath("/admin");
     return { message: "Password reset successfully" };
   } catch {
     return {
@@ -2034,7 +2034,6 @@ export async function deleteEmployee(employeeId: number) {
       where: { id: employeeId },
     });
 
-    revalidatePath("/admin");
     return { message: "Employee deleted successfully" };
   } catch {
     return {
@@ -2054,7 +2053,6 @@ export async function insertIceCreams(iceCreams: IceCreamInputa[]) {
       data: iceCreams,
     });
 
-    revalidatePath("/admin/ice-creams");
     return { success: true, message: "Ice creams inserted successfully!" };
   } catch (error) {
     console.error("Failed to insert ice creams:", error);
@@ -2138,7 +2136,6 @@ export async function createCoupon(formData: {
       },
     });
 
-    revalidatePath("/coupons");
     return { success: true, coupon };
   } catch (error) {
     console.error("Error creating coupon:", error);
@@ -2167,7 +2164,6 @@ export async function updateCoupon(
       },
     });
 
-    revalidatePath("/coupons");
     return { success: true, coupon };
   } catch (error) {
     console.error("Error updating coupon:", error);
@@ -2181,7 +2177,6 @@ export async function deleteCoupon(id: number) {
       where: { id },
     });
 
-    revalidatePath("/coupons");
     return { success: true };
   } catch (error) {
     console.error("Error deleting coupon:", error);
@@ -2284,6 +2279,7 @@ export async function getUserProfile(userId: number) {
         username: true,
         address: true,
         gstNumber: true,
+        companyName: true,
       },
     });
 
@@ -2305,6 +2301,7 @@ export async function updateUserProfile(userId: number, formData: FormData) {
       username: formData.get("username"),
       address: formData.get("address") || null,
       gstNumber: formData.get("gstNumber") || null,
+      companyName: formData.get("companyName") || null,
     });
 
     // Check if username is already taken by another user
@@ -2336,6 +2333,7 @@ export async function updateUserProfile(userId: number, formData: FormData) {
         username: validatedData.username,
         address: validatedData.address,
         gstNumber: validatedData.gstNumber,
+        companyName: validatedData.companyName,
       },
     });
 

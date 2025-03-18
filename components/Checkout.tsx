@@ -22,7 +22,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [couponCode, setCouponCode] = useState<string>('');
 
-  const { userId,billerName,address } = useUser();
+  const { userId,billerName,address,companyName ,gstNumber} = useUser();
   console.log('address is',address)
   const queryClient = useQueryClient();
   const { toast } = useToast()
@@ -242,11 +242,12 @@ const printCustomerBillDesktop = async (billNo: string | null) => {
 
   const content = `
     <div class="text-center">
-      <div class="title">Iglu Ice Cream Shop</div>
-      <p style="margin: 5px 0;">${address || ''}</p>
-      <p style="margin: 5px 0;">Branch Id: ${userId}</p>
+      <div class="title">${companyName}</div>
+     <p style="margin: 5px 0;">GST No: ${gstNumber || ''}</p>
+      <p style="margin: 5px 0;">Add: ${address || ''}</p>
+
       <p style="margin: 5px 0;">Date: ${new Date().toLocaleDateString()}</p>
-      <p style="margin: 5px 0;" class="font-bold">CUSTOMER COPY</p>
+      <p style="margin: 5px 0;" class="font-bold">CUSTOMER BILL</p>
       ${billNo ? `<p style="margin: 5px 0;">Bill Number: ${billNo}</p>` : ''}
     </div>
     
@@ -285,8 +286,8 @@ const printCustomerBillDesktop = async (billNo: string | null) => {
 const printKitchenOrderDesktop = async (kot: number | undefined) => {
   const content = `
     <div class="text-center">
-      <div class="title">Iglu Ice Cream Shop</div>
-      <p>Branch Id: ${userId}</p>
+      <div class="title">${companyName}</div>
+
       <p>Date: ${new Date().toLocaleDateString()}</p>
       <p>Time: ${new Date().toLocaleTimeString()}</p>
       <p class="font-bold">KITCHEN COPY</p>
@@ -321,10 +322,11 @@ const printCombinedBillDesktop = async (billNo: string | null, kot: number | und
   const content = `
     <!-- Customer Copy -->
     <div class="text-center">
-      <div class="title">Iglu Ice Cream Shop</div>
-      <p style="margin: 5px 0;">Branch Id: ${userId}</p>
+      <div class="title">${companyName}</div>
+   <p style="margin: 5px 0;">GST No: ${gstNumber || ''}</p>
+   <p style="margin: 5px 0;">Add: ${address || ''}</p>
       <p style="margin: 5px 0;">Date: ${new Date().toLocaleDateString()}</p>
-      <p style="margin: 5px 0;" class="font-bold">CUSTOMER COPY</p>
+      <p style="margin: 5px 0;" class="font-bold">CUSTOMER BILL</p>
       ${billNo ? `<p style="margin: 5px 0;">Bill Number: ${billNo}</p>` : ''}
     </div>
     
@@ -356,8 +358,8 @@ const printCombinedBillDesktop = async (billNo: string | null, kot: number | und
     
     <!-- Kitchen Copy -->
     <div class="text-center">
-      <div class="title">Iglu Ice Cream Shop</div>
-      <p>Branch Id: ${userId}</p>
+      <div class="title">${companyName}</div>
+
       <p>Date: ${new Date().toLocaleDateString()}</p>
       <p>Time: ${new Date().toLocaleTimeString()}</p>
       <p class="font-bold">KITCHEN COPY</p>

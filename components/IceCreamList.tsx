@@ -54,7 +54,7 @@ export default function IceCreamList() {
     isLoading: isLoadingIceCreams,
     error: iceCreamError
   } = useQuery({
-    queryKey: ['iceCreams'],
+    queryKey: ['iceCreams', userId],
     queryFn: () => fetchIceCreams(userId ?? ''),
     staleTime: 1000 * 60 * 60 * 12, // 12 hours
     gcTime: 1000 * 60 * 60 * 24

@@ -56,7 +56,7 @@ export default function CouponsPage() {
     const { 
         data: couponsData,
       } = useQuery({
-        queryKey: ['coupon'],
+        queryKey: ['coupon',userId],
         queryFn: () => fetchCoupons(userId ?? ''),
         staleTime: 1000 * 60 * 60 * 12, // 12 hours
         gcTime: 1000 * 60 * 60 * 24,
@@ -80,7 +80,7 @@ export default function CouponsPage() {
   const handleDelete = async () => {
     if (deleteConfirmId) {
       await deleteCoupon(deleteConfirmId);
-      queryClient.invalidateQueries({ queryKey: ['coupon'] });
+      queryClient.invalidateQueries({ queryKey: ['coupon',userId] });
     //   setCoupons(coupons.filter(c => c.id !== deleteConfirmId));
       setDeleteConfirmId(null);
     }
@@ -119,7 +119,7 @@ export default function CouponsPage() {
               <TableCell>
                 {coupon.type === 'PERCENTAGE' 
                   ? `${coupon.value}%` 
-                  : `$${coupon.value.toFixed(2)}`}
+                  : `Rs.${coupon.value.toFixed(2)}`}
               </TableCell>
               <TableCell>{coupon.maxUsage || '0'}</TableCell>
               <TableCell>

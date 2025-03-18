@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
+
 // Define the Employee type
 type Employee = {
   id: number;
@@ -32,6 +33,8 @@ type Employee = {
   phoneNumber: string;
   password: string;
 };
+
+
 const fetchEmployees = async (userId: string) => {
 
   const result = await getEmployees(parseInt(userId));
@@ -44,10 +47,9 @@ const fetchEmployees = async (userId: string) => {
 }
 
 export default function EmployeesPage() {
+
   const { userId } = useUser();
- 
-  // const [employees, setEmployees] = useState<Employee[]>([]);
-  // const [isLoading, setIsLoading] = useState(true);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
 
@@ -57,38 +59,13 @@ export default function EmployeesPage() {
     isLoading: isEmployeeLoading,
 
   } = useQuery({
-    queryKey: ['employee'],
+    queryKey: ['employee',userId],
     queryFn: () => fetchEmployees(userId ?? ''),
     staleTime: 1000 * 60 * 60 * 12, // 12 hours
     gcTime: 1000 * 60 * 60 * 24
   })
 
-  // useEffect(() => {
-  //   async function fetchEmployees() {
-  //     if (userId) {
-  //       try {
-  //         const data = await getEmployees(parseInt(userId));
-  //         setEmployees(data);
-  //       } catch (error) {
-  //         toast({
-  //           title: "Error",
-  //           description: "Failed to fetch employees",
-  //           variant: "destructive",
-  //         });
-  //       } finally {
-  //         setIsLoading(false);
-  //       }
-  //     }
-  //   }
-  //   fetchEmployees();
-  // }, [userId, toast]);
 
-  // const handleRefreshEmployees = async () => {
-  //   if (userId) {
-  //     const data = await getEmployees(parseInt(userId));
-  //     setEmployees(data);
-  //   }
-  // };
 const employees = employeemData?.data || []
   return (
     <div className="container mx-auto px-4 py-16">
@@ -174,6 +151,7 @@ const employees = employeemData?.data || []
 }
 
 function EmployeeRow({ employee }: { employee: Employee }) {
+  const { userId } = useUser();
   const [showPassword, setShowPassword] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
@@ -186,7 +164,7 @@ function EmployeeRow({ employee }: { employee: Employee }) {
     const result = await deleteEmployee(employee.id);
     
     if (result.message === "Employee deleted successfully") {
-      queryClient.invalidateQueries({ queryKey: ['employee'] });
+      queryClient.invalidateQueries({ queryKey: ['employee',userId] });
       toast({
         title: "Success",
         description: result.message,
@@ -303,13 +281,14 @@ function EmployeeRow({ employee }: { employee: Employee }) {
 }
 
 function EditEmployeeForm({ employee, onClose }: { employee: Employee; onClose: () => void }) {
+  const { userId } = useUser();
   const { toast } = useToast();
   const queryClient = useQueryClient()
   async function handleSubmit(formData: FormData) {
     const result = await updateEmployee(employee.id, formData);
     
     if (result.message === "Employee updated successfully") {
-      queryClient.invalidateQueries({ queryKey: ['employee'] });
+      queryClient.invalidateQueries({ queryKey: ['employee',userId] });
       toast({
         title: "Success",
         description: result.message,
@@ -369,6 +348,7 @@ function EditEmployeeForm({ employee, onClose }: { employee: Employee; onClose: 
 }
 
 function ResetPasswordForm({ employeeId, onClose }: { employeeId: number; onClose: () => void }) {
+  const { userId } = useUser();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const queryClient = useQueryClient()
@@ -376,7 +356,7 @@ function ResetPasswordForm({ employeeId, onClose }: { employeeId: number; onClos
     const result = await resetEmployeePassword(employeeId, formData);
     
     if (result.message === "Password reset successfully") {
-      queryClient.invalidateQueries({ queryKey: ['employee'] });
+      queryClient.invalidateQueries({ queryKey: ['employee',userId] });
       toast({
         title: "Success",
         description: result.message,
@@ -474,7 +454,7 @@ function AddEmployeeDialog({
     const response = await createEmployee(state, formData);
     setState(response); 
     if (response.message === "Employee created successfully") {
-      queryClient.invalidateQueries({ queryKey: ['employee'] });
+      queryClient.invalidateQueries({ queryKey: ['employee',loginId] });
       formRef.current?.reset();
       onSuccess();
     }
@@ -512,7 +492,7 @@ function AddEmployeeDialog({
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Password
+              Set Password
             </label>
             <div className="relative">
               <input

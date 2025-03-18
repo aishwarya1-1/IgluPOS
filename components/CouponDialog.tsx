@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { createCoupon, updateCoupon } from '@/app/lib/actions'
 import { useQueryClient } from '@tanstack/react-query';
 import { Coupon } from '@/app/admin/coupon/page';
+import { useUser } from '@/context/UserContext';
 
 
 interface CouponDialogProps {
@@ -57,7 +58,7 @@ useEffect(() => {
   const [maxUsage, setMaxUsage] = useState(initialData?.maxUsage || undefined);
   const [expiryDate, setExpiryDate] = useState<Date | undefined>(initialData?.expiryDate?? undefined);
 const queryClient=useQueryClient()
-
+const {userId}= useUser()
   const handleSubmit = async () => {
     try {
       const formData = {
@@ -72,7 +73,7 @@ const queryClient=useQueryClient()
       const result = initialData?.id 
         ? await updateCoupon(initialData.id, formData)
         : await createCoupon(formData);
-
+      
       if (result.success) {
         onOpenChange(false);
         // Reset form
@@ -81,7 +82,7 @@ const queryClient=useQueryClient()
         setValue(0);
         setMaxUsage(undefined);
         setExpiryDate(undefined);
-        queryClient.invalidateQueries({ queryKey: ['coupon'] });
+        queryClient.invalidateQueries({ queryKey: ['coupon',userId] });
       } else {
         // Handle error (maybe show a toast)
         console.error(result.error);
