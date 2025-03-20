@@ -9,7 +9,7 @@
 # Iglu Ice Cream POS Billing Application
 
 ## Introduction
-The **Iglu Ice Cream POS Billing Application** is a point-of-sale (POS) system tailored for ice cream parlors. Designed with flexibility, any ice cream shop can use this application to manage billing, orders, sales tracking, employee management, and coupon handling. The system features a user-friendly interface, robust backend processing, and insightful sales analytics, empowering business owners to make informed decisions.
+I built a production-ready Ice Cream POS system that’s actively used by a local business. It handles billing, order management, analytics, and employee tracking with a clean and efficient UI. 
 
 ## Features
 - **Billing System**: Generates detailed bills for customer purchases.
