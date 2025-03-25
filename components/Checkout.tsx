@@ -15,9 +15,10 @@ import { RawBTPrinter } from '@/app/lib/rawBT';
 
 export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: number; kotAction?: string ;cartItems?:string;}) {
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { cart, clearCart, totalCost, populateCart,  applyDiscount, 
     removeDiscount,currentDiscount  } = useCart();
-    const [activeTab, setActiveTab] = useState<'none' | 'discount' | 'coupon'>('none');
+  const [activeTab, setActiveTab] = useState<'none' | 'discount' | 'coupon'>('none');
   const [discountType, setDiscountType] = useState<'PERCENTAGE' | 'FLAT' | ''>('');
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [couponCode, setCouponCode] = useState<string>('');
@@ -610,9 +611,14 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
 
 
   const handleSave = async () => {
-    setIsDialogVisible(false);
-    try {
 
+    try {
+      if (isSubmitting) {
+        return;
+      }
+
+      setIsSubmitting(true);
+      setIsDialogVisible(false);
       if(kotActionState){
         if(kotActionState==='append'){
           try{
@@ -709,6 +715,9 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
         variant: "destructive",
       });
     }
+    finally {
+      setIsSubmitting(false);
+    }
   };
   const handleCancel =() =>{
     setIsDialogVisible(false);
@@ -716,7 +725,14 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) {
+      return;
+    }
     const formData = new FormData(event.currentTarget);
+
+    try {
+      // Set submitting state before the request
+      setIsSubmitting(true);
 
     if (action === 'save') {
       if(kotActionState){
@@ -733,7 +749,18 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
       await formAction(formData);
     
   }
-
+} catch (error) {
+  // Handle any errors
+  console.error('Submission error:', error);
+  toast({
+    title: "Error",
+    description: "Failed to submit the order",
+    variant: "destructive",
+  });
+} finally {
+  // Always reset submitting state
+  setIsSubmitting(false);
+}
   };
 
   return (
@@ -948,22 +975,23 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
             type="submit"
             onClick={() => setAction('save')}
             className={`w-full px-4 py-2 rounded text-sm font-medium transition ${
-              isKOTDisabled || cart.length === 0 ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 text-white hover:bg-blue-600"
+              isKOTDisabled || cart.length === 0  || isSubmitting ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 text-white hover:bg-blue-600"
             }`}
-            disabled={isKOTDisabled || cart.length === 0}
+            disabled={isKOTDisabled || cart.length === 0 || isSubmitting}
           >
-            KOT
+             {isSubmitting ? 'Submitting...' : 'KOT'}
           </button>
 
           <button
             type="submit"
             onClick={() => setAction('saveAndPrint')}
             className={`w-full px-4 py-2 rounded text-sm font-medium transition 
-            ${isSaveAndPrintDisabled ? "bg-gray-400 text-gray-700 cursor-not-allowed" : "bg-green-500 text-white hover:bg-green-600"}
+              ${isSaveAndPrintDisabled || isSubmitting ? "bg-gray-400 text-gray-700 cursor-not-allowed" : "bg-green-500 text-white hover:bg-green-600"}
           `}
-            disabled={isSaveAndPrintDisabled}
+            disabled={isSaveAndPrintDisabled || isSubmitting}
           >
-            Save and Print
+           
+           {isSubmitting ? 'Saving...' : 'Save and Print'}
           </button>
         </div>
       </form>
