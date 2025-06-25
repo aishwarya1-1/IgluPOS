@@ -4,7 +4,7 @@ import { useFormState } from 'react-dom';
 import { CartItem, useCart } from '../context/CartContext';
 import { useUser } from '@/context/UserContext';
 import { appendKOTorder, BillState, createBill, createKOTBill, editKOTorder,validateCoupon} from '@/app/lib/actions';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Cart from './Cart';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from "@/hooks/use-toast"
@@ -22,7 +22,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   const [discountType, setDiscountType] = useState<'PERCENTAGE' | 'FLAT' | ''>('');
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [couponCode, setCouponCode] = useState<string>('');
-
+  const isLockedRef = useRef(false);
   const { userId,billerName,address,companyName ,gstNumber} = useUser();
   console.log('address is',address)
   const queryClient = useQueryClient();
@@ -722,46 +722,45 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
   const handleCancel =() =>{
     setIsDialogVisible(false);
   }
-
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSubmitting) {
+  
+    if (isLockedRef.current || isSubmitting) {
+      return; // Block duplicate rapid clicks
+    }
+  
+    // Open dialog without locking or submitting
+    if (action === 'save' && !kotActionState && cart.length > 0) {
+      setIsDialogVisible(true);
       return;
     }
+  
+    isLockedRef.current = true;
+    setIsSubmitting(true);
+  
     const formData = new FormData(event.currentTarget);
-
+  
     try {
-      // Set submitting state before the request
-      setIsSubmitting(true);
-
-    if (action === 'save') {
-      if(kotActionState){
-        await handleSave();
+      if (action === 'save') {
+        if (kotActionState) {
+          await handleSave(); // Append/edit/save KOT
+        }
+      } else {
+        await formAction(formData); // Form submission path
       }
-      else if (cart.length > 0 ) {
-       
-        setIsDialogVisible(true);
-      }
-  
-
-    } else {
-  
-      await formAction(formData);
-    
-  }
-} catch (error) {
-  // Handle any errors
-  console.error('Submission error:', error);
-  toast({
-    title: "Error",
-    description: "Failed to submit the order",
-    variant: "destructive",
-  });
-} finally {
-  // Always reset submitting state
-  setIsSubmitting(false);
-}
+    } catch (error) {
+      console.error('Submission error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to submit the order",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+      isLockedRef.current = false;
+    }
   };
+  
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-md max-w-md mx-auto">
@@ -984,7 +983,10 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
 
           <button
             type="submit"
-            onClick={() => setAction('saveAndPrint')}
+            onClick={() => {
+              if (isSubmitting) return; // Prevent race condition with form submission
+              setAction('saveAndPrint');
+            }}
             className={`w-full px-4 py-2 rounded text-sm font-medium transition 
               ${isSaveAndPrintDisabled || isSubmitting ? "bg-gray-400 text-gray-700 cursor-not-allowed" : "bg-green-500 text-white hover:bg-green-600"}
           `}
