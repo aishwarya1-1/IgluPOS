@@ -722,14 +722,11 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
   const handleCancel =() =>{
     setIsDialogVisible(false);
   }
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-  
+  const handleSubmitManually = async () => {
     if (isLockedRef.current || isSubmitting) {
-      return; // Block duplicate rapid clicks
+      return;
     }
   
-    // Open dialog without locking or submitting
     if (action === 'save' && !kotActionState && cart.length > 0) {
       setIsDialogVisible(true);
       return;
@@ -738,22 +735,22 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
     isLockedRef.current = true;
     setIsSubmitting(true);
   
-    const formData = new FormData(event.currentTarget);
-  
     try {
       if (action === 'save') {
         if (kotActionState) {
-          await handleSave(); // Append/edit/save KOT
+          await handleSave();
         }
       } else {
-        await formAction(formData); // Form submission path
+        const form = document.getElementById('checkout-form') as HTMLFormElement;
+        const formData = new FormData(form);
+        await formAction(formData);
       }
     } catch (error) {
       console.error('Submission error:', error);
       toast({
-        title: "Error",
-        description: "Failed to submit the order",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to submit the order',
+        variant: 'destructive',
       });
     } finally {
       setIsSubmitting(false);
@@ -786,7 +783,11 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
       <Cart cartErrors={state.errors?.cart} />
 
       <h2 className="text-xl font-semibold mb-4">Checkout</h2>
-      <form key={key} onSubmit={handleSubmit} className="space-y-4">
+      <form 
+  id="checkout-form"
+  key={key} 
+  className="space-y-4"
+>
         <div>
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center">
@@ -971,8 +972,11 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
         </div>
         <div className="flex flex-col space-y-2">
           <button
-            type="submit"
-            onClick={() => setAction('save')}
+            type="button"
+            onClick={() => {
+              setAction('save');
+              handleSubmitManually();
+            }}
             className={`w-full px-4 py-2 rounded text-sm font-medium transition ${
               isKOTDisabled || cart.length === 0  || isSubmitting ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 text-white hover:bg-blue-600"
             }`}
@@ -982,10 +986,11 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
           </button>
 
           <button
-            type="submit"
+             type="button"
             onClick={() => {
               if (isSubmitting) return; // Prevent race condition with form submission
               setAction('saveAndPrint');
+              handleSubmitManually();
             }}
             className={`w-full px-4 py-2 rounded text-sm font-medium transition 
               ${isSaveAndPrintDisabled || isSubmitting ? "bg-gray-400 text-gray-700 cursor-not-allowed" : "bg-green-500 text-white hover:bg-green-600"}
