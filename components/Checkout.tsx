@@ -9,7 +9,7 @@ import Cart from './Cart';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from "@/hooks/use-toast"
 import { useQueryClient } from '@tanstack/react-query';
-
+import CryptoJS from 'crypto-js';
 import { isMobileDevice } from '@/app/lib/device';
 import { RawBTPrinter } from '@/app/lib/rawBT';
 
@@ -29,13 +29,23 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   const { toast } = useToast()
   const isMobile = isMobileDevice();
   const [kotActionState, setKotActionState] = useState<string | undefined>();
-  const controllerRef = useRef<AbortController | null>(null);
+
 
   const createBilling = async (prevState: BillState, formData: FormData ) => {
     const currentKotActionState = kotActionState;
- 
+    const rawKey = JSON.stringify({
+      userId,
+      cart,
+      totalCost,
+      modeOfPayment: formData.get('modeOfPayment'),
+      orderType: formData.get('orderType'),
+      billerName,
+      partPayment,
+      currentDiscount,
+    });
+    const submissionKey = CryptoJS.SHA256(rawKey).toString();
 
-    return createBill(cart, totalCost, userId, prevState, formData,currentKotActionState,kotid,billerName,partPayment,currentDiscount);
+    return createBill(cart, totalCost, userId, prevState, formData,currentKotActionState,kotid,billerName,partPayment,currentDiscount,submissionKey);
     
   };
   const initialState: BillState = { message: '', errors: {} };
@@ -727,10 +737,6 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
     if (isLockedRef.current || isSubmitting) {
       return;
     }
-    if (controllerRef.current) {
-      controllerRef.current.abort(); // kill the previous one
-    }
-  
     if (action === 'save' && !kotActionState && cart.length > 0) {
       setIsDialogVisible(true);
       return;
@@ -738,8 +744,7 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
   
     isLockedRef.current = true;
     setIsSubmitting(true);
-    const controller = new AbortController();
-    controllerRef.current = controller;
+
   
     try {
       if (action === 'save') {

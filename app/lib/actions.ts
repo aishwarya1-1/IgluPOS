@@ -31,6 +31,16 @@ import { redirect } from "next/navigation";
 import crypto from "crypto";
 import { JsonValue } from "@prisma/client/runtime/library";
 import { z } from "zod";
+const recentlyUsedKeys = new Set<string>();
+
+function isDuplicateSubmission(submissionKey: string) {
+  if (recentlyUsedKeys.has(submissionKey)) {
+    return true;
+  }
+  recentlyUsedKeys.add(submissionKey);
+  setTimeout(() => recentlyUsedKeys.delete(submissionKey), 5000);
+  return false;
+}
 // const ENCRYPTION_KEY =
 //   process.env.ENCRYPTION_KEY || "your-32-character-secret-key-here"; // 32 bytes
 // const IV_LENGTH = 16; // For AES, this is always 16
@@ -612,8 +622,15 @@ export async function createBill(
     type: "PERCENTAGE" | "FLAT";
     value: number;
     id?: number;
-  } | null
+  } | null,
+  submissionKey: string
 ) {
+  if (!submissionKey || isDuplicateSubmission(submissionKey)) {
+    return {
+      message: "Duplicate submission blocked",
+      errors: {},
+    };
+  }
   let userOrderId: number | null = null;
   let kotSave: number | null = null;
 
