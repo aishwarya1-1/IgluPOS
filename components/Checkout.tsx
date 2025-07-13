@@ -24,11 +24,12 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   const [couponCode, setCouponCode] = useState<string>('');
   const isLockedRef = useRef(false);
   const { userId,billerName,address,companyName ,gstNumber} = useUser();
-  console.log('address is',address)
+  
   const queryClient = useQueryClient();
   const { toast } = useToast()
   const isMobile = isMobileDevice();
   const [kotActionState, setKotActionState] = useState<string | undefined>();
+  const controllerRef = useRef<AbortController | null>(null);
 
   const createBilling = async (prevState: BillState, formData: FormData ) => {
     const currentKotActionState = kotActionState;
@@ -726,6 +727,9 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
     if (isLockedRef.current || isSubmitting) {
       return;
     }
+    if (controllerRef.current) {
+      controllerRef.current.abort(); // kill the previous one
+    }
   
     if (action === 'save' && !kotActionState && cart.length > 0) {
       setIsDialogVisible(true);
@@ -734,6 +738,8 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
   
     isLockedRef.current = true;
     setIsSubmitting(true);
+    const controller = new AbortController();
+    controllerRef.current = controller;
   
     try {
       if (action === 'save') {
