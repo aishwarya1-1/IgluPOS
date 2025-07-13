@@ -51,7 +51,7 @@ export default function Checkout({ kotid,cartItems, kotAction }: { kotid?: numbe
   const initialState: BillState = { message: '', errors: {} };
   const [state, formAction] = useFormState(createBilling, initialState);
   const [key, setKey] = useState(0);
-  const [action, setAction] = useState('');
+  // const [action, setAction] = useState('');
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [showPartPay, setShowPartPay] = useState(false);
@@ -733,11 +733,11 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
   const handleCancel =() =>{
     setIsDialogVisible(false);
   }
-  const handleSubmitManually = async () => {
+  const handleSubmitManually = async (nextAction: 'save' | 'saveAndPrint') => {
     if (isLockedRef.current || isSubmitting) {
       return;
     }
-    if (action === 'save' && !kotActionState && cart.length > 0) {
+    if (nextAction === 'save' && !kotActionState && cart.length > 0) {
       setIsDialogVisible(true);
       return;
     }
@@ -747,7 +747,7 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
 
   
     try {
-      if (action === 'save') {
+      if (nextAction === 'save') {
         if (kotActionState) {
           await handleSave();
         }
@@ -984,10 +984,7 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
         <div className="flex flex-col space-y-2">
           <button
             type="button"
-            onClick={() => {
-              setAction('save');
-              handleSubmitManually();
-            }}
+            onClick={() => handleSubmitManually('save')}
             className={`w-full px-4 py-2 rounded text-sm font-medium transition ${
               isKOTDisabled || cart.length === 0  || isSubmitting ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 text-white hover:bg-blue-600"
             }`}
@@ -998,11 +995,7 @@ const kotSave = UserKOTCounter[1] ? parseInt(UserKOTCounter[1].trim()) : undefin
 
           <button
              type="button"
-            onClick={() => {
-              if (isSubmitting) return; // Prevent race condition with form submission
-              setAction('saveAndPrint');
-              handleSubmitManually();
-            }}
+             onClick={() => handleSubmitManually('saveAndPrint')}
             className={`w-full px-4 py-2 rounded text-sm font-medium transition 
               ${isSaveAndPrintDisabled || isSubmitting ? "bg-gray-400 text-gray-700 cursor-not-allowed" : "bg-green-500 text-white hover:bg-green-600"}
           `}
