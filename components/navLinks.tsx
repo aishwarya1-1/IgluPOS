@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import React from 'react';
 import {
     BanknotesIcon,
-    ChartBarIcon,
+    // ChartBarIcon,
 ArrowLeftCircleIcon,
     PlusCircleIcon,
     ClockIcon
@@ -14,7 +14,7 @@ ArrowLeftCircleIcon,
 
   const navItems = [
     { name: 'Billing', path: '/billing',icon: BanknotesIcon },
-    { name: 'Dashboard', path: '/billing/dashboard',icon :ChartBarIcon },
+    // { name: 'Dashboard', path: '/billing/dashboard',icon :ChartBarIcon },
     { name: 'Add Item', path: '/billing/add-item' ,icon :PlusCircleIcon},
     { name: 'KOT', path: '/billing/kot' ,icon :ArrowLeftCircleIcon},
     { name: 'Last Orders', path: '/billing/last-orders' ,icon :ClockIcon},

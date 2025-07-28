@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import React from 'react';
 import {
    UserIcon,
-   ChartBarIcon,
+  //  ChartBarIcon,
    PlusCircleIcon,
    PercentBadgeIcon
   } from '@heroicons/react/24/outline';
@@ -14,7 +14,7 @@ import {
 
   const navItems = [
     { name: 'Employee', path: '/admin',icon: UserIcon },
-    { name: 'Dashboard', path: '/admin/dashboard',icon :ChartBarIcon },
+    // { name: 'Dashboard', path: '/admin/dashboard',icon :ChartBarIcon },
     { name: 'Add Bulk Items', path: '/admin/upload' ,icon :PlusCircleIcon},
     { name: 'Coupons', path: '/admin/coupon' ,icon :PercentBadgeIcon},
 
